@@ -3,4 +3,4 @@ Python Board Game Money Maker - create your own money for your favorite board ga
 
 ## Requirements
 * Python (3.6)
-* LaTeX installation (MiKTeX or TeX Live)
+* LaTeX installation (LuaTeX from MiKTeX or TeX Live)
