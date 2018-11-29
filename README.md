@@ -6,7 +6,7 @@ This script does not just put an image on a page, no! It adds a serial number as
 ![ONE bill, two-sided](https://github.com/foreachthing/makeMoney/blob/master/scrshot-000.png)
 This is a preview of the first (and second) page. You can specify the range of the serial number (and/or location, font* and size) between 0 and 2^31-1. Then each bill gets a random number assigned and it will come out zero-padded.
 
-* more fonts to come
+* Using the [Emerald](http://www.pirbot.com/mirrors/ctan/fonts/emerald/) package
 
 
 ## Instructions
