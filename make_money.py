@@ -14,9 +14,10 @@ import random # for seed
 # define files
 DIR_PATH = Path(__file__).resolve().parent
 
-MAXIMUM = 2147483647 # (2^31)-1
+MAXIMUM = 2147483647 # 2**31 - 1
 ARGS = 0
 ALL_DEFARGS = 0
+LIST_OF_FONTS = dict([('Apicturealphabet', '\ECFAPictureAlphabet'), ('Augie', '\ECFAugie'), ('Decadence', '\ECFDecadence'), ('DecadenceWithoutTheDiamonds', '\ECFDecadenceWithoutTheDiamonds'), ('DecadenceCondensed', '\ECFDecadenceCondensed'), ('DecadenceInTheDark', '\ECFDecadenceInTheDark'), ('DecadenceITDCondensed', '\ECFDecadenceInTheDarkCondensed'), ('DecadenceInADifferentLight', '\ECFDecadenceInADifferentLight'), ('DecadenceITDCondensedMarquee', '\ECFDecadenceInTheDarkCondensedMarquee'), ('Intimacy', '\ECFIntimacy'), ('IntimacyDeux', '\ECFIntimacyDeux'), ('JD', '\ECFJD'), ('Movieola', '\ECFMovieola'), ('Movieolatitletype', '\ECFMovieolaTitleType'), ('Pookie', '\ECFPookie'), ('PookieT', '\ECFPookieType'), ('Skeetch', '\ECFSkeetch'), ('SpankysBungalow', '\ECFSpankysBungalow'), ('SpankysBungalowItalico', '\ECFSpankysBungalowItalico'), ('SpankysBungalowBlanco', '\ECFSpankysBungalowBlanco'), ('SpankysBungalowBlancoItalico', '\ECFSpankysBungalowBlancoItalico'), ('Syriac', '\ECFSyriac'), ('TallPaul', '\ECFTallPaul'), ('Teenspirit', '\ECFTeenSpirit'), ('Webster', '\ECFWebster')])
 
 def argumentparser():
     """ ArgumentParser """
@@ -46,8 +47,7 @@ def argumentparser():
     grp_sn.add_argument('-snoff', nargs=2, metavar=('X', 'Y'), default=('-44', '-0.2'), type=float, help='X Y offset, in mm and starting from the center, of serial number label (default: %(default)s mm)')
     grp_sn.add_argument('-fsize', metavar='float', type=float, default=3.2, help='Font size in mm. Default: %(default)s mm')
 
-    list_of_fontnames = ['standard', 'augie']
-    grp_sn.add_argument('-font', metavar='FONTNAME', type=str, default='standard', choices=list_of_fontnames, help='Font for serial number label. Type "-font ?" for a list of options. Default: %(default)s')
+    grp_sn.add_argument('-font', metavar='FONTNAME', type=str, default='standard', choices=LIST_OF_FONTS.keys(), help='Font for serial number label. Using the "Emerald" package. Type "-font ?" for a list of options. Warning: Font names are case sensitive! Default: %(default)s')
 
     grp_bills = parser.add_argument_group('Number of Pages of bills of each value', 'Maximum of 500 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and 8 pages. Example: "-nop 5 7 -bv 10 20" will create a document of 12 pages. 5 pages of 10s and 7 pages of 20s.')
     # 1, 5, 10, 20, 50, 100, 500
@@ -59,6 +59,7 @@ def argumentparser():
     grp_bills.add_argument('-rec', action='store_true', default=False, help='Use recommended number of pages of each bill value (see above). This will override both of the above settings. (Default: %(default)s)')
 
     try:
+        # Make ARGS global
         global ARGS
         ARGS = parser.parse_args()
 
@@ -213,11 +214,12 @@ def create_tex_main(file_bills):
     out.write(r'\documentclass{article}' + '\n')
     out.write('\\usepackage[paperheight={1}mm, paperwidth={0}mm, layoutheight={1}mm, layoutwidth={0}mm, layoutvoffset=0mm,  layouthoffset=0mm, margin=0pt, showframe=false, showcrop=false]'.format(ARGS.width, ARGS.height) + '{geometry}' + '\n')
     out.write(r'\usepackage[T1]{fontenc}' + '\n')
+    out.write(r'\usepackage{emerald}' + '\n')
 
-    if ARGS.font == 'augie':
+    if ARGS.font != 'standard':
         out.write(r'\DeclareRobustCommand{\thisfontsfamily}{%' + '\n')
-        out.write(r'  \fontsize{' + str(fontsize) + r'mm}{' + str(fontsize + 1) + r'mm}\fontfamily{augie}\fontseries{m}\fontshape{n}\selectfont}' + '\n')
-    elif ARGS.font == 'standard':
+        out.write(r'  \fontsize{' + str(fontsize) + r'mm}{' + str(fontsize + 1) + r'mm}' + str(LIST_OF_FONTS.get(ARGS.font)) + r'\fontseries{m}\fontshape{n}\selectfont}' + '\n')
+    else:
         out.write(r'\DeclareRobustCommand{\thisfontsfamily}{\fontsize{' + str(fontsize) + r'mm}{' + str(fontsize + 1) + r'mm}\rmfamily\selectfont}' + '\n')
 
     out.write(r'\usepackage{tikz}' + '\n')
