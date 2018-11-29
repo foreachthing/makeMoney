@@ -4,10 +4,11 @@ Python Board Game Money Maker - create your own money for your favorite board ga
 This script does not just put an image on a page, no! It adds a serial number as well!
 
 ![ONE bill, two-sided](https://github.com/foreachthing/makeMoney/blob/master/scrshot-000.png)
-This is a preview of the first (and second) page. You can specify the range of the serial number (and/or location, font* and size) between 0 and 2^31-1. Then each bill gets a random number assigned and it will come out zero-padded.
+This is a preview of the first (and second) page. You can specify the range of the serial number (and/or location, font(&ast;) and size) between 0 and 2^31-1. Then each bill gets a random(&ast;&ast;) number assigned and it will come out zero-padded.
 
-* Using the [Emerald](http://www.pirbot.com/mirrors/ctan/fonts/emerald/) package
+(&ast;) Using the [Emerald](http://www.pirbot.com/mirrors/ctan/fonts/emerald/) package
 
+(&ast;&ast;) Tried it with >10'000 numbers and no duplicates found!
 
 ## Instructions
 
