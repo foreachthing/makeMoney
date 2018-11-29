@@ -1,5 +1,5 @@
 """
-    Make your own Monopoly Money
+    Make your own Board Game Money
 """
 #!/usr/bin/python
 
