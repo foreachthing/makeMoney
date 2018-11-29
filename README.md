@@ -1,5 +1,21 @@
 # makeMoney
-Python Board Game Money Maker - create your own money for your favorite board game
+Python Board Game Money Maker - create your own money for your favorite board game.
+
+This script does not just put an image on a page, no! It adds a serial number as well!
+
+![ONE bill, two-sided](https://github.com/foreachthing/makeMoney/blob/master/scrshot-000.png)
+This is a preview of the first (and second) page. You can specify the range of the serial number (and/or location, font* and size) between 0 and 2^31-1. Then each bill gets a random number assigned and it will come out zero-padded.
+
+* more fonts to come
+
+
+## Instructions
+
+1. Create your on bills _(I took those bills from here: http://www.gunook.com/das-monopol-des-zauberers-harry-potter-monopoly/)_
+1. [Download](https://github.com/foreachthing/makeMoney/archive/master.zip) or [clone](https://github.com/foreachthing/makeMoney.git) and run the python script with or without parameters (see below).
+1. Print `yourMoney.pdf` duplex over the short edge.
+1. Cut 'em out and enjoy your money.
+
 
 ## Requirements
 * Python (3.6)
