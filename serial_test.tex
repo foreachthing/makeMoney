@@ -1,0 +1,19 @@
+% !TeX TS-program = lualatex
+\documentclass[a4paper, 10pt]{article}
+\usepackage[margin=1cm]{geometry}
+\usepackage{multicol}
+\usepackage{forloop}
+\usepackage{fmtcount}
+\usepackage[first=1, last=2147483647, seed=15, counter=serialnumber]{lcg}
+
+\newcounter{numpages}
+\begin{document}
+	\pagestyle{empty}
+	\begin{multicols}{8}
+		\noindent
+		\forloop{numpages}{1}{\value{numpages} < 10408}{
+		 \rand
+		 \decimal{serialnumber}\newline
+		}
+	\end{multicols}
+\end{document}
