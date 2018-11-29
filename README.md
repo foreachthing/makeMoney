@@ -55,15 +55,17 @@ Page and bill settings:
 
 Serial Number Settings:
   -sns int              Define seed for randomness of serial numbers. Default:
-                        a random (right now: 536315417 - will be different
+                        a random (right now: 1104122974 - will be different
                         next time) number will be used.
   -sn START END         Start and end value of serial number. Minimum = 0,
                         Maximum = 2'147'483'647, default: (1, 2147483647).
   -snoff X Y            X Y offset, in mm and starting from the center, of
                         serial number label (default: ('-44', '-0.2') mm)
   -fsize float          Font size in mm. Default: 3.2 mm
-  -font FONTNAME        Font for serial number label. Type "-font ?" for a
-                        list of options. Default: standard
+  -font FONTNAME        Font for serial number label. Using the "Emerald"
+                        package. Type "-font ?" for a list of options.
+                        Warning: Font names are case sensitive! Default:
+                        standard
 
 Number of Pages of bills of each value:
   Maximum of 500 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and
