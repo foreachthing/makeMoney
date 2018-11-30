@@ -17,7 +17,19 @@ DIR_PATH = Path(__file__).resolve().parent
 MAXIMUM = 2147483647 # 2**31 - 1
 ARGS = 0
 ALL_DEFARGS = 0
-LIST_OF_FONTS = dict([('Apicturealphabet', '\ECFAPictureAlphabet'), ('Augie', '\ECFAugie'), ('Decadence', '\ECFDecadence'), ('DecadenceWithoutTheDiamonds', '\ECFDecadenceWithoutTheDiamonds'), ('DecadenceCondensed', '\ECFDecadenceCondensed'), ('DecadenceInTheDark', '\ECFDecadenceInTheDark'), ('DecadenceITDCondensed', '\ECFDecadenceInTheDarkCondensed'), ('DecadenceInADifferentLight', '\ECFDecadenceInADifferentLight'), ('DecadenceITDCondensedMarquee', '\ECFDecadenceInTheDarkCondensedMarquee'), ('Intimacy', '\ECFIntimacy'), ('IntimacyDeux', '\ECFIntimacyDeux'), ('JD', '\ECFJD'), ('Movieola', '\ECFMovieola'), ('Movieolatitletype', '\ECFMovieolaTitleType'), ('Pookie', '\ECFPookie'), ('PookieT', '\ECFPookieType'), ('Skeetch', '\ECFSkeetch'), ('SpankysBungalow', '\ECFSpankysBungalow'), ('SpankysBungalowItalico', '\ECFSpankysBungalowItalico'), ('SpankysBungalowBlanco', '\ECFSpankysBungalowBlanco'), ('SpankysBungalowBlancoItalico', '\ECFSpankysBungalowBlancoItalico'), ('Syriac', '\ECFSyriac'), ('TallPaul', '\ECFTallPaul'), ('Teenspirit', '\ECFTeenSpirit'), ('Webster', '\ECFWebster')])
+LIST_OF_FONTS = dict([('Apicturealphabet', r'\ECFAPictureAlphabet'), ('Augie', r'\ECFAugie'), \
+    ('Decadence', r'\ECFDecadence'), ('DecadenceWithoutTheDiamonds', r'\ECFDecadenceWithoutTheDiamonds'), \
+    ('DecadenceCondensed', r'\ECFDecadenceCondensed'), ('DecadenceInTheDark', r'\ECFDecadenceInTheDark'), \
+    ('DecadenceITDCondensed', r'\ECFDecadenceInTheDarkCondensed'), ('DecadenceInADifferentLight', r'\ECFDecadenceInADifferentLight'), \
+    ('DecadenceITDCondensedMarquee', r'\ECFDecadenceInTheDarkCondensedMarquee'), ('Intimacy', r'\ECFIntimacy'), \
+    ('IntimacyDeux', r'\ECFIntimacyDeux'), ('JD', r'\ECFJD'), \
+    ('Movieola', r'\ECFMovieola'), ('Movieolatitletype', r'\ECFMovieolaTitleType'), \
+    ('Pookie', r'\ECFPookie'), ('PookieT', r'\ECFPookieType'), \
+    ('Skeetch', r'\ECFSkeetch'), ('SpankysBungalow', r'\ECFSpankysBungalow'), \
+    ('SpankysBungalowItalico', r'\ECFSpankysBungalowItalico'), ('SpankysBungalowBlanco', r'\ECFSpankysBungalowBlanco'), \
+    ('SpankysBungalowBlancoItalico', r'\ECFSpankysBungalowBlancoItalico'), ('Syriac', r'\ECFSyriac'), \
+    ('TallPaul', r'\ECFTallPaul'), ('Teenspirit', r'\ECFTeenSpirit'), \
+    ('Webster', r'\ECFWebster')])
 
 def argumentparser():
     """ ArgumentParser """
@@ -210,9 +222,8 @@ def create_tex_main(file_bills):
         shifty = 0
 
     out = codecs.open(DIR_PATH/file_bills, 'w', encoding='utf8')
-    out.write(r'% !TeX TS-program = lualatex' + '\n') # TeXstudio magic comment!
     out.write(r'\documentclass{article}' + '\n')
-    out.write('\\usepackage[paperheight={1}mm, paperwidth={0}mm, layoutheight={1}mm, layoutwidth={0}mm, layoutvoffset=0mm,  layouthoffset=0mm, margin=0pt, showframe=false, showcrop=false]'.format(ARGS.width, ARGS.height) + '{geometry}' + '\n')
+    out.write('\\usepackage[paperheight={1}mm, paperwidth={0}mm, margin=0pt]'.format(ARGS.width, ARGS.height) + '{geometry}' + '\n')
     out.write(r'\usepackage[T1]{fontenc}' + '\n')
     out.write(r'\usepackage{emerald}' + '\n')
 
@@ -239,6 +250,7 @@ def create_tex_main(file_bills):
     out.write(r'	\end{tikzpicture}\newpage}' + '\n')
 
     out.write(r'\newcounter{numpages}' + '\n')
+    out.write(r'\pagestyle{empty}' + '\n')
     out.write(r'\begin{document}' + '\n')
 
     for i in range(len(ARGS.nop)):
