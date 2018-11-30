@@ -11,6 +11,9 @@
 	\pagestyle{empty}
 	\begin{multicols}{8}
 		\noindent
+		% 10408 ~= 20 A4 pages full of serial numbers
+		% use Excel and conditional formatting to
+		% check for duplicates ... so far: none found!
 		\forloop{numpages}{1}{\value{numpages} < 10408}{
 		 \rand
 		 \decimal{serialnumber}\newline
