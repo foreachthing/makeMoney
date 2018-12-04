@@ -17,16 +17,23 @@ This is a preview of the first and second (front and back) page. You can specify
 1. Print `yourMoney.pdf` duplex over the short edge.
 1. Cut 'em out and enjoy your money.
 
-
 ## Requirements
 * Python (3.6)
 * LaTeX installation (LuaTeX from MiKTeX or TeX Live)
+
+## Examples
+1. To print the default settings: `python make_money.py`
+1. To print 5 pages of 500s and 2 pages of 10s, you can use this command: `python make_money.py -nop 5 2 -bv 500 10`
+1. To print serial numbers between 50'000 and 900'000, duplex offset x = 1 mm and the recommended number of pages of each bill, use this: `python make_money.py -sns 50000 900000 -dupoff 1 0 -rec`
+
+
 
 ## Usage
 ```
 usage: make_money.py [-h] [-d] [-ps str] [-bpp int] [-width float]
                      [-height float] [-dupoff X Y] [-sns int] [-sn START END]
-                     [-snoff X Y] [-fsize float] [-font FONTNAME]
+                     [-snoff X Y] [-fsize float] [-font FONTNAME] [-frontback]
+                     [-front str] [-back str] [-snboff X Y]
                      [-nop [NOP [NOP ...]]] [-bv [BV [BV ...]]] [-rec]
 
 ** Board Game Money-Maker ** Make your own custom money for your favorite
@@ -36,7 +43,7 @@ images stored in the "./bills" sub-directory.
 optional arguments:
   -h, --help            show this help message and exit
   -d                    For debugging or testing only! Use the dummy image in
-                        the subdirectory, rather than the real ones. Fontsize
+                        the subdirectory, rather thanthe real ones. Fontsize
                         is 3 times default, label is centered to page.
                         (Default: False)
 
@@ -56,7 +63,7 @@ Page and bill settings:
 
 Serial Number Settings:
   -sns int              Define seed for randomness of serial numbers. Default:
-                        a random (right now: 1104122974 - will be different
+                        a random (right now: 819212364 - will be different
                         next time) number will be used.
   -sn START END         Start and end value of serial number. Minimum = 0,
                         Maximum = 2'147'483'647, default: (1, 2147483647).
@@ -67,6 +74,17 @@ Serial Number Settings:
                         package. Type "-font ?" for a list of options.
                         Warning: Font names are case sensitive! Default:
                         standard
+
+Use these options to use a different image for the front and back side:
+  -frontback            If set, you need to specify "-fron" and "-back" as
+                        well. (Default: False)
+  -front str            Front image prefix. Default: money -> money-1, money-5
+                        etc.
+  -back str             Back image prefix. Default: money-b -> money-b-1,
+                        money-b-5 etc.
+  -snboff X Y           X Y offset, in mm and starting from the center, of
+                        serial number label for the BACK side (default:
+                        ('-44', '-0.2') mm)
 
 Number of Pages of bills of each value:
   Maximum of 500 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and
