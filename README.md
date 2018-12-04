@@ -1,7 +1,6 @@
 # makeMoney
-Python Board Game Money Maker - create your own money for your favorite board game.
-
-This script does not just put an image on a page, no! It adds a serial number as well!
+Board-Game Money-Maker - create/print your own money for your favorite (board) game.
+This script also adds a "unique" serial number as well!
 
 ![ONE bill, two-sided](https://github.com/foreachthing/makeMoney/blob/master/scrshot-000.png)
 This is a preview of the first and second (front and back) page. You can specify the range of the serial number (and/or location, font(&ast;) and size) between 0 and 2^31-1. Then each bill gets a random(&ast;&ast;) number assigned and it will come out zero-padded.
@@ -9,6 +8,18 @@ This is a preview of the first and second (front and back) page. You can specify
 (&ast;) Using the [Emerald](http://www.pirbot.com/mirrors/ctan/fonts/emerald/) package
 
 (&ast;&ast;) Tried it with >10'000 numbers and no duplicates found!
+
+### What it can do:
+* Use different layouts for the front and the back side
+* print only one value (i.e. only 100s bills)
+* define how many pages you need of each bill
+* define range for serial number
+* set font and font-size of your s/n
+* accurately place the s/n on the front and on the back side
+* set size of bill and paper to print them on
+* if your duplex has accuracy problems, adjust for that
+* 
+
 
 ## Instructions
 
@@ -20,6 +31,15 @@ This is a preview of the first and second (front and back) page. You can specify
 ## Requirements
 * Python (3.6)
 * LaTeX installation (LuaTeX from MiKTeX or TeX Live)
+* LaTeX required packages:
+  * geometry
+  * fontenc
+  * emerald
+  * tikz, with positioning
+  * forloop
+  * fmtcount
+  * lcg
+  * pdfpages
 
 ## Examples
 1. To print the default settings: `python make_money.py`
@@ -44,7 +64,7 @@ images stored in the "./bills" sub-directory.
 optional arguments:
   -h, --help            show this help message and exit
   -d                    For debugging or testing only! Use the dummy image in
-                        the subdirectory, rather thanthe real ones. Fontsize
+                        the subdirectory, rather than the real ones. Fontsize
                         is 3 times default, label is centered to page.
                         (Default: False)
 
