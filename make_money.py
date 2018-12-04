@@ -54,7 +54,7 @@ def argumentparser():
         epilog='')
 
     parser.add_argument('-d', action='store_true', default=False, \
-    help='For debugging or testing only! Use the dummy image in the subdirectory, rather than' \
+    help='For debugging or testing only! Use the dummy image in the subdirectory, rather than ' \
         'the real ones. Fontsize is 3 times default, label is centered to page. '\
         '(Default: %(default)s)')
 
