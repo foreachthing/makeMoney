@@ -25,7 +25,7 @@ This is a preview of the first and second (front and back) page. You can specify
 1. To print the default settings: `python make_money.py`
 1. To print 5 pages of 500s and 2 pages of 10s, you can use this command: `python make_money.py -nop 5 2 -bv 500 10`
 1. To print serial numbers between 50'000 and 900'000, duplex offset x = 1 mm and the recommended number of pages of each bill, use this: `python make_money.py -sns 50000 900000 -dupoff 1 0 -rec`
-1. To print a different (deault front: money; default back: money-b) image on the back: `python make_money.py -frontback`
+1. To print a different (default front: money; default back: money-b) image on the back: `python make_money.py -frontback`
 
 
 
