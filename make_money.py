@@ -1,5 +1,5 @@
 """
-    Make your own Board Game Money
+    Make your own Board-Game Money
 """
 #!/usr/bin/python
 
@@ -82,12 +82,23 @@ def argumentparser():
     grp_page.add_argument('-dupoff', action='store', nargs=2, metavar=('X', 'Y'), \
         default=('0', '0'), type=float, help='X Y offset, in mm, for duplex printing. '\
         'This setting helps with missaligned duplex printer. Default: %(default)s mm')
-
     # Serial number settings
     grp_sn = parser.add_argument_group('Serial Number Settings')
+
+    # -s # turn serial numbers off
+    grp_sn.add_argument('-s', action='store_true', default=False, \
+        help='Turn serial numbers off. (Default: %(default)s)')
+
+    # -sb # no serial numbers on the back side
+    grp_sn.add_argument('-sb', action='store_true', default=False, \
+        help='Turn serial numbers on the back side off. (Default: %(default)s)')
+
+    # serial number seed
     grp_sn.add_argument('-sns', metavar='int', type=int, default=random.randint(0, MAXIMUM), \
         help='Define seed for randomness of serial numbers. Default: a random (right now: '\
         '%(default)s - will be different next time) number will be used.')
+
+    # serial number START -> END value
     grp_sn.add_argument('-sn', nargs=2, metavar=('START', 'END'), default=(1, MAXIMUM), \
         type=int, help='Start and end value of serial number. Minimum = 0, Maximum = ' + \
         str(format(MAXIMUM, ',')).replace(',', "'") + ', default: %(default)s.')
@@ -96,7 +107,6 @@ def argumentparser():
         'label (default: %(default)s mm)')
     grp_sn.add_argument('-fsize', metavar='float', type=float, default=3.2, \
         help='Font size in mm. Default: %(default)s mm')
-
     grp_sn.add_argument('-font', metavar='FONTNAME', type=str, default='standard', \
         choices=LIST_OF_FONTS.keys(), help='Font for serial number label. Using the '\
         '"Emerald" package. Type "-font ?" for a list of options. Warning: Font names '\
@@ -132,7 +142,6 @@ def argumentparser():
         'This will override both of the above settings. (Default: %(default)s)')
 
     try:
-        # Make ARGS global
         args = parser.parse_args()
 
         # To get all defaults:
@@ -146,7 +155,7 @@ def argumentparser():
         parser.error(str(msg))
 
 
-def makevalid(value, mini, maxi):
+def set_validrange(value, mini, maxi):
     """
         Make the passed arguments within a valid range
         and return the result.
@@ -182,14 +191,14 @@ def args_validator(args, all_defargs):
         args.bv = all_defargs.get('bv')
         args.nop = ('20', '4', '8', '4', '4', '16', '8')  # all_defargs.get('nop')
 
-    sn0 = makevalid(int(args.sn[0]), imin, imax)
+    sn0 = set_validrange(int(args.sn[0]), imin, imax)
     if int(args.sn[1]) <= sn0:
         sn1 = max
     else:
-        sn1 = makevalid(int(args.sn[1]), imin, imax)
+        sn1 = set_validrange(int(args.sn[1]), imin, imax)
     args.sn = (sn0, sn1)
 
-    args.sns = makevalid(int(args.sns), imin, imax)
+    args.sns = set_validrange(int(args.sns), imin, imax)
 
     iminb = 0
     imaxb = 500
@@ -200,14 +209,10 @@ def args_validator(args, all_defargs):
 
     list_nop = []
     for i in range(len(args.nop)):
-        list_nop.append(makevalid(int(args.nop[i]), iminb, imaxb))
+        list_nop.append(set_validrange(int(args.nop[i]), iminb, imaxb))
 
     args.nop = list_nop
-
-    args.bpp = makevalid(args.bpp, 1, imaxb) # bills per page
-
-
-
+    args.bpp = set_validrange(args.bpp, 1, imaxb) # bills per page
 
 
 def main(args, all_defargs):
@@ -219,14 +224,13 @@ def main(args, all_defargs):
     for i in range(len(args.nop)):
         totalpages += int(args.nop[i])
 
-
     file_bills = '1-main'
     file_print = '2-print'
     files_ext_tex = '.tex'
 
     create_xwm_file(file_bills, totalpages) # create a required (watermark) file
-    create_tex_main(file_bills + files_ext_tex)
-    create_printable_doc(totalpages, file_bills, (file_print + files_ext_tex))
+    create_tex_main(args, file_bills + files_ext_tex)
+    create_printable_doc(args, totalpages, file_bills, (file_print + files_ext_tex))
 
     cmd = ['lualatex', '-output-directory', str(DIR_PATH), '-interaction=nonstopmode', \
         str(DIR_PATH/(file_bills + files_ext_tex))]
@@ -266,93 +270,52 @@ def main(args, all_defargs):
         exit(1)
 
 
-
-def create_tex_main(file_bills):
+def create_tex_main(args, file_bills):
     """
         Creates the bills with the serial numbers. One bill per page.
     """
 
-    lbillvalues = ARGS.bv
-
-    # get values from arguments
-    shiftx = ARGS.snoff[0]
-    shifty = ARGS.snoff[1]
-    shiftbx = ARGS.snboff[0]
-    shiftby = ARGS.snboff[1]
-    fontsize = ARGS.fsize
-
-    if ARGS.d:
-        fontsize = round(ARGS.fsize * 3, 2)
-        shiftx = 0
-        shifty = 0
-        shiftbx = 0
-        shiftby = 0
+    lbillvalues = args.bv
 
     out = codecs.open(DIR_PATH/file_bills, 'w', encoding='utf8')
     out.write(r'\documentclass{article}' + '\n')
     out.write('\\usepackage[paperheight={1}mm, paperwidth={0}mm, margin=0pt]'\
-        .format(ARGS.width, ARGS.height) + '{geometry}' + '\n')
-    out.write(r'\usepackage[T1]{fontenc}' + '\n')
-    out.write(r'\usepackage{emerald}' + '\n')
-
-    if ARGS.font != 'standard':
-        out.write(r'\DeclareRobustCommand{\thisfontsfamily}{%' + '\n')
-        out.write(r'  \fontsize{' + str(fontsize) + r'mm}{' + str(fontsize + 1) + r'mm}' + \
-        str(LIST_OF_FONTS.get(ARGS.font)) + r'\fontseries{m}\fontshape{n}\selectfont}' + '\n')
-    else:
-        out.write(r'\DeclareRobustCommand{\thisfontsfamily}{\fontsize{' + \
-        str(fontsize) + r'mm}{' + str(fontsize + 1) + r'mm}\rmfamily\selectfont}' + '\n')
+        .format(args.width, args.height) + '{geometry}' + '\n')
 
     out.write(r'\usepackage{tikz}' + '\n')
     out.write(r'\usetikzlibrary{positioning}' + '\n')
     out.write(r'\usepackage{forloop}' + '\n')
-    out.write(r'\usepackage{fmtcount}' + '\n')
-    out.write(r'\usepackage[first=' + str(ARGS.sn[0]) + ', last=' + str(ARGS.sn[1]) + \
-        r', seed=' + str(ARGS.sns) + ', counter=serialnumber]{lcg}' + '\n')
 
-    strdebug = ''
-    strcol1 = 'lightgray'
-    strcol2 = 'lightgray'
-    if ARGS.d:
-        strdebug = r' \thisfontsfamily #3 -- '
-        if ARGS.frontback:
-            strcol2 = 'yellow'
-
-    out.write(r'\newcommand{\mypics}[3]{\rand\begin{tikzpicture}[remember picture,overlay]'\
-        r'\node (thispage) [shape=rectangle, fill=' + strcol1 + \
-        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
-        r'at (current page.center) {};\node at (thispage.center) '\
-        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};\node[xshift=' + \
-        str(shiftx) + r'mm, yshift=' + str(shifty) + r'mm] at (thispage.center) '\
-        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'\
-        r'\end{tikzpicture}\newpage\begin{tikzpicture}[remember picture,overlay]\node '\
-        r'(thispage) [shape=rectangle, fill=' + strcol2 + r', minimum height=\paperheight, '\
-        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};\node at '\
-        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'\
-        r'\node[xshift=' + str(shiftbx) + r'mm, yshift=' + str(shiftby) + r'mm] at '\
-        r'(thispage.center) {\thisfontsfamily' + strdebug + r'\padzeroes[10]{'\
-        r'\decimal{serialnumber}}};\end{tikzpicture}\newpage}' + '\n')
-
+    get_serialnumber_setting(args, out)
 
     out.write(r'\newcounter{numpages}' + '\n')
     out.write(r'\pagestyle{empty}' + '\n')
     out.write(r'\begin{document}' + '\n')
 
-    for i in range(len(ARGS.nop)):
+    for i in range(len(args.nop)):
 
         out.write(r'% % % ' + str(lbillvalues[i]) + '\n')
         out.write(r'\forloop{numpages}{1}{\value{numpages} < '+ \
-            str(ARGS.nop[i] * int(ARGS.bpp) + 1) +'}{%' + '\n')
+            str(args.nop[i] * int(args.bpp) + 1) +'}{%' + '\n')
 
-        if ARGS.d:
-            out.write(r' \mypics{bills/dummy}{bills/dummy}{' + str(lbillvalues[i]) + '}' + '\n')
+        if args.d:
+            out.write(r' \mypics{example-image-a}{example-image-b}{' + \
+                str(lbillvalues[i]) + '}' + '\n')
         else:
-            if ARGS.frontback:
-                out.write(r' \mypics{bills/' + ARGS.front + '-' + str(lbillvalues[i]) + \
-                    r'}{bills/' + ARGS.back + '-' + str(lbillvalues[i]) + r'}{}' + '\n')
+            if not args.s:
+                if args.frontback:
+                    out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
+                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}{}' + '\n')
+                else:
+                    out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
+                        r'{bills/money-' + str(lbillvalues[i]) + r'}{}' + '\n')
             else:
-                out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}{bills/money-' + \
-                    str(lbillvalues[i]) + r'}{}' + '\n')
+                if args.frontback:
+                    out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
+                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}' + '\n')
+                else:
+                    out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
+                        r'{bills/money-' + str(lbillvalues[i]) + r'}' + '\n')
 
         out.write(r'}' + '\n\n')
 
@@ -360,22 +323,145 @@ def create_tex_main(file_bills):
     out.close()
 
 
-def create_printable_doc(totalpages, file_bills, file_print):
+def get_serialnumber_setting(args, out):
+    """
+        silly pylint - too many branches ... don't like big trees?!
+    """
+
+    # get serialnumber settings from arguments
+    xyf = Serialnumber(args)
+
+    out.write(r'\usepackage[T1]{fontenc}' + '\n')
+    out.write(r'\usepackage{emerald}' + '\n')
+
+    if not args.s:
+        if args.font != 'standard':
+            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{%' + '\n')
+            out.write(r'  \fontsize{' + str(xyf.fontsize) + r'mm}{' + \
+                str(xyf.fontsize + 1) + r'mm}' + str(LIST_OF_FONTS.get(args.font)) + \
+                r'\fontseries{m}\fontshape{n}\selectfont}' + '\n')
+        else:
+            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{\fontsize{' + \
+            str(xyf.fontsize) + r'mm}{' + str(xyf.fontsize + 1) + \
+                r'mm}\rmfamily\selectfont}' + '\n')
+
+        out.write(r'\usepackage{fmtcount}' + '\n')
+        out.write(r'\usepackage[first=' + str(args.sn[0]) + ', last=' + str(args.sn[1]) + \
+            r', seed=' + str(args.sns) + ', counter=serialnumber]{lcg}' + '\n')
+
+    strdebug = ''
+    strcol1 = 'lightgray'
+    strcol2 = 'lightgray'
+    if args.d:
+        out.write(r'\newcounter{ctdebugger}' + '\n')
+        strdebug = r' \thisfontsfamily #3 -- '
+        if args.frontback:
+            strcol2 = 'yellow'
+
+    if not args.s and not args.sb:
+        # if serial number on front and back
+        print_serialnumbers(out, xyf, strdebug, strcol1, strcol2)
+    elif args.sb:
+        # if serial number on front and back
+        print_no_serial_on_backside(out, xyf, strdebug, strcol1, strcol2)
+    else:
+        # if NO serial number on front AND back
+        print_no_serial(args, out, strcol1, strcol2)
+
+
+def print_no_serial(args, out, strcol1, strcol2):
+    """
+        do this, if the user doesn't want serial numbers on hers/his bills
+    """
+    # if NO serial number on front AND back
+    if args.d:
+        out.write(r'\newcommand{\mypics}[3]')
+    else:
+        out.write(r'\newcommand{\mypics}[2]')
+
+    out.write(r'{\begin{tikzpicture}[remember picture,overlay]' + '\n'\
+        r'\node (thispage) [shape=rectangle, fill=' + strcol1 + \
+        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
+        r'at (current page.center) {};' + '\n' + \
+        r'\node at (thispage.center) '\
+        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};' + '\n')
+    if args.d:
+        out.write(r'\stepcounter{ctdebugger}' + '\n')
+        out.write(r'\node [anchor=south] at (thispage.south) {\thectdebugger - #3};' + '\n')
+    out.write(r'\end{tikzpicture}' + '\n' + \
+        r'\newpage' + '\n' + \
+        r'\begin{tikzpicture}[remember picture,overlay]' + '\n'\
+        r'\node (thispage) [shape=rectangle, fill=' + strcol2 + r', '\
+        r'minimum height=\paperheight, '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};' + '\n'\
+        r'\node at (thispage.center) '\
+        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#2}};')
+
+    if args.d:
+        out.write(r'\node [anchor=south] at (thispage.south) {\thectdebugger - #3};' + '\n')
+
+    out.write(r'\end{tikzpicture}\newpage}' + '\n')
+
+
+def print_no_serial_on_backside(out, xyf, strdebug, strcol1, strcol2):
+    """
+        do this, if the user doesn't want serial numbers on the back of the bills
+    """
+    # if serial number on front and back
+    out.write(r'\newcommand{\mypics}[3]{\rand\begin{tikzpicture}[remember picture,overlay]'\
+        r'\node (thispage) [shape=rectangle, fill=' + strcol1 + \
+        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
+        r'at (current page.center) {};\node at (thispage.center) '\
+        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};\node[xshift=' +\
+        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm] at (thispage.center) '\
+        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'\
+        r'\end{tikzpicture}' + \
+        r'\newpage' + \
+        r'\begin{tikzpicture}[remember picture,overlay]\node '\
+        r'(thispage) [shape=rectangle, fill=' + strcol2 + r', minimum height=\paperheight, '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};\node at '\
+        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'\
+        r'\end{tikzpicture}\newpage}' + '\n')
+
+
+def print_serialnumbers(out, xyf, strdebug, strcol1, strcol2):
+    """
+        do this, if the user wants serial numbers both sides of the bills
+    """
+    # if serial number on front and back
+    out.write(r'\newcommand{\mypics}[3]{\rand\begin{tikzpicture}[remember picture,overlay]'\
+        r'\node (thispage) [shape=rectangle, fill=' + strcol1 + \
+        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
+        r'at (current page.center) {};\node at (thispage.center) '\
+        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};\node[xshift=' + \
+        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm] at (thispage.center) '\
+        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'\
+        r'\end{tikzpicture}' + \
+        r'\newpage' + \
+        r'\begin{tikzpicture}[remember picture,overlay]\node '\
+        r'(thispage) [shape=rectangle, fill=' + strcol2 + r', minimum height=\paperheight, '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};\node at '\
+        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'\
+        r'\node[xshift=' + str(xyf.shiftbx) + r'mm, yshift=' + str(xyf.shiftby) + r'mm] at '\
+        r'(thispage.center) {\thisfontsfamily' + strdebug + r'\padzeroes[10]{'\
+        r'\decimal{serialnumber}}};\end{tikzpicture}\newpage}' + '\n')
+
+
+def create_printable_doc(args, totalpages, file_bills, file_print):
     """
         Creates the pdf-document with all the bills for duplex printing
     """
 
     out = codecs.open(DIR_PATH/file_print, 'w', encoding='utf8')
     out.write(r'% !TeX TS-program = lualatex' + '\n') # TeXstudio magic comment!
-    out.write(r'\documentclass['+ ARGS.ps +', landscape]{article}' + '\n')
+    out.write(r'\documentclass['+ args.ps +', landscape]{article}' + '\n')
     out.write(r'\usepackage{pdfpages}' + '\n')
     out.write(r'\begin{document}' + '\n')
 
-    ibpp = ARGS.bpp
-    icol = 2 # FIXED VALUE!!! I'm not that good at math ... I don't need anything else.
+    icol = int(2) # FIXED VALUE!!! I'm not that good at math ... I don't need anything else.
 
-    billsize = 'width=' + str(round(ARGS.width, 2)) + 'mm, height=' + \
-        str(round(ARGS.height, 2)) + 'mm, '
+    billsize = 'width=' + str(round(args.width, 2)) + 'mm, height=' + \
+        str(round(args.height, 2)) + 'mm, '
 
     #
     #
@@ -384,9 +470,9 @@ def create_printable_doc(totalpages, file_bills, file_print):
         ibppcheck = 0
         front_page = deque()
         back_page = deque()
-        for ibillnum in range(pgoffset * ibpp, (pgoffset * ibpp) + 2 * ibpp):
+        for ibillnum in range(pgoffset * args.bpp, (pgoffset * args.bpp) + 2 * args.bpp):
             ibillnum += 1
-            if ibppcheck < ibpp:
+            if ibppcheck < args.bpp:
                 if ibillnum % 2 == 0:
                     back_page.append(ibillnum)
                     ibppcheck += 1
@@ -394,25 +480,28 @@ def create_printable_doc(totalpages, file_bills, file_print):
                     front_page.append(ibillnum)
 
         # makes {8,10,12,2,4,6} out of {2,4,6,8,10,12}
-        back_page.rotate(int(ibpp/2))
+        back_page.rotate(int(args.bpp/icol))
 
-        strpage1 = r'\includepdf[pages={' + ', '.join(str(x) for x in front_page) + r'}, '\
+        # number of rows in final pdf
+        irow = int(args.bpp / icol)
+
+        if args.bpp % 2 != 0:
+            irow = int((args.bpp + 1) / icol)
+            back_page.insert(irow - 1, '')
+
+        out.write(r'\includepdf[pages={' + ', '.join(str(x) for x in front_page) + r'}, '\
             r'offset=0.0mm 0.0mm, noautoscale, ' + billsize + 'nup=' + str(icol) + 'x' + \
-            str(int(ibpp / icol)) + r', pagecommand={\thispagestyle{empty}}, column=true, '\
-            r'columnstrict=true]{' + file_bills + '}'
+            str(irow) + r', pagecommand={\thispagestyle{empty}}, column=true, '\
+            r'columnstrict=true]{' + file_bills + '}' + '\n')
 
-        strpage2 = r'\includepdf[pages={' + ', '.join(str(x) for x in back_page) + \
-            '}, offset=' + str(round(float(ARGS.dupoff[0]), 2)) + 'mm ' + \
-            str(round(float(ARGS.dupoff[1]), 2)) + 'mm, noautoscale, ' + billsize + \
-            r'nup=' + str(icol) + 'x' + str(int(ibpp / icol)) + \
+        out.write(r'\includepdf[pages={' + ', '.join(str(x) for x in back_page) + \
+            '}, offset=' + str(round(float(args.dupoff[0]), 2)) + 'mm ' + \
+            str(round(float(args.dupoff[1]), 2)) + 'mm, noautoscale, ' + billsize + \
+            r'nup=' + str(icol) + 'x' + str(irow) + \
             r', pagecommand={\thispagestyle{empty}}, column=true, '\
-            r'columnstrict=true]{' + file_bills + '}'
-
-        out.write(strpage1 + '\n')
-        out.write(strpage2 + '\n')
+            r'columnstrict=true]{' + file_bills + '}' + '\n')
 
         pgoffset += 2
-
     #
     #
 
@@ -420,5 +509,46 @@ def create_printable_doc(totalpages, file_bills, file_print):
     out.close()
 
 
+class Serialnumber:
+    """ pylint thinks this would be better ... to out-source such things """
+
+    def __init__(self, args):
+
+        self._shiftx = args.snoff[0]
+        self._shifty = args.snoff[1]
+        self._shiftbx = args.snboff[0]
+        self._shiftby = args.snboff[1]
+        self._fontsize = args.fsize
+        if args.d:
+            self._fontsize = round(args.fsize * 3, 2)
+            self._shiftx = 0
+            self._shifty = 0
+            self._shiftbx = 0
+            self._shiftby = 0
+
+    @property
+    def shiftx(self):
+        """ get/set shift-x """
+        return self._shiftx
+    @property
+    def shifty(self):
+        """ get/set shift-y """
+        return self._shifty
+    @property
+    def shiftbx(self):
+        """ get/set back side shift-x """
+        return self._shiftbx
+    @property
+    def shiftby(self):
+        """ get/set back side shift-x """
+        return self._shiftby
+    @property
+    def fontsize(self):
+        """ get/set font size in mm """
+        return self._fontsize
+
+
 ARGS, ALL_DEFARGS = argumentparser()
 main(ARGS, ALL_DEFARGS)
+
+# final endline
