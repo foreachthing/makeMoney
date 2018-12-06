@@ -52,10 +52,11 @@ This is a preview of the first and second (front and back) page. You can specify
 ## Usage
 ```
 usage: make_money.py [-h] [-d] [-ps str] [-bpp int] [-width float]
-                     [-height float] [-dupoff X Y] [-sns int] [-sn START END]
-                     [-snoff X Y] [-fsize float] [-font FONTNAME] [-frontback]
-                     [-front str] [-back str] [-snboff X Y]
-                     [-nop [NOP [NOP ...]]] [-bv [BV [BV ...]]] [-rec]
+                     [-height float] [-dupoff X Y] [-s] [-sb] [-sns int]
+                     [-sn START END] [-snoff X Y] [-fsize float]
+                     [-font FONTNAME] [-frontback] [-front str] [-back str]
+                     [-snboff X Y] [-nop [NOP [NOP ...]]] [-bv [BV [BV ...]]]
+                     [-rec]
 
 ** Board Game Money-Maker ** Make your own custom money for your favorite
 board game. Use the different options to customize your money-set. Use the
@@ -83,8 +84,11 @@ Page and bill settings:
                         '0') mm
 
 Serial Number Settings:
+  -s                    Turn serial numbers off. (Default: False)
+  -sb                   Turn serial numbers on the back side off. (Default:
+                        False)
   -sns int              Define seed for randomness of serial numbers. Default:
-                        a random (right now: 819212364 - will be different
+                        a random (right now: 927164258 - will be different
                         next time) number will be used.
   -sn START END         Start and end value of serial number. Minimum = 0,
                         Maximum = 2'147'483'647, default: (1, 2147483647).
