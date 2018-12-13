@@ -13,6 +13,7 @@ This is a preview of the first and second (front and back) page. You can specify
 * Use different layouts for the front and the back side
 * print only one value (i.e. only 100s bills)
 * define how many pages you need of each bill
+* define how many columns your bills should appear in (best results, if all rows/columns are completly filled)
 * define range for serial number
 * set font and font-size of your s/n
 * accurately place the s/n on the front and on the back side
@@ -51,7 +52,7 @@ This is a preview of the first and second (front and back) page. You can specify
 
 ## Usage
 ```
-usage: make_money.py [-h] [-d] [-ps str] [-bpp int] [-width float]
+usage: make_money.py [-h] [-d] [-ps str] [-bpp int] [-col int] [-width float]
                      [-height float] [-dupoff X Y] [-s] [-sb] [-sns int]
                      [-sn START END] [-snoff X Y] [-fsize float]
                      [-font FONTNAME] [-frontback] [-front str] [-back str]
@@ -74,7 +75,10 @@ Page and bill settings:
                         landscape). Type "-ps ?" for a list of options.
                         Default: a4paper
   -bpp int              Number of bills per page. Note: make sure that all
-                        your bills fit on one tow-column page. Default: 6
+                        your bills fit on one page. Default: 6
+  -col int              Number of columns of bills per page (1-100). Note:
+                        make sure that all your bills fit on one page.
+                        Default: 2
   -width float          Width of bill in [mm]. Image will be stretched if
                         value doesn't match actual width. Default: 130 mm
   -height float         Height of bill in [mm]. Image will be stretched if
@@ -88,7 +92,7 @@ Serial Number Settings:
   -sb                   Turn serial numbers on the back side off. (Default:
                         False)
   -sns int              Define seed for randomness of serial numbers. Default:
-                        a random (right now: 927164258 - will be different
+                        a random (right now: 700788315 - will be different
                         next time) number will be used.
   -sn START END         Start and end value of serial number. Minimum = 0,
                         Maximum = 2'147'483'647, default: (1, 2147483647).
@@ -125,4 +129,8 @@ Number of Pages of bills of each value:
   -rec                  Use recommended number of pages of each bill value
                         (see above). This will override both of the above
                         settings. (Default: False)
+
+NOTE: Best results are with complete rows and columns (i.e.: 81 bpp = 9x9, 6
+bpp = 2x3, etc.). If a row is incomplete, it can happen that the serial
+numbers won't match anymore!
 ```
