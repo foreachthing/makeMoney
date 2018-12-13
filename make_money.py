@@ -51,7 +51,10 @@ def argumentparser():
             'board game. Use the different options to customize your money-set. Use the images ' \
             'stored in the "./bills" sub-directory.',
         allow_abbrev=False,
-        epilog='')
+        epilog='NOTE: '\
+            'Best results are with complete rows and columns '\
+            '(i.e.: 81 bpp = 9x9, 6 bpp = 2x3, etc.). If a row is incomplete, '\
+            'it can happen that the serial numbers won\'t match anymore!')
 
     parser.add_argument('-d', action='store_true', default=False, \
     help='For debugging or testing only! Use the dummy image in the subdirectory, rather than ' \
@@ -68,7 +71,10 @@ def argumentparser():
         default='a4paper', help='Printed paper size (page for printing is set to landscape). ' \
         'Type "-ps ?" for a list of options. Default: %(default)s')
     grp_page.add_argument('-bpp', metavar='int', type=int, default=6, help='Number of bills '\
-        'per page. Note: make sure that all your bills fit on one tow-column page. '\
+        'per page. Note: make sure that all your bills fit on one page. '\
+        'Default: %(default)s')
+    grp_page.add_argument('-col', metavar='int', type=int, default=2, help='Number of columns '\
+        'of bills per page (1-100). Note: make sure that all your bills fit on one page. '\
         'Default: %(default)s')
     grp_page.add_argument('-width', metavar='float', type=float, default=130, \
         help='Width of bill in [mm]. Image will be stretched if value doesn\'t match '\
@@ -175,8 +181,8 @@ def create_xwm_file(file_bills, totalpages):
         This creates a required xwm file (watermark)
     """
     xwm_file = open(DIR_PATH/(file_bills + '.xwm'), 'w')
-    xwm_file.write(r'\relax' + '\n'\
-        r'\xwmnewlabel{xwmlastpage}{{}{' + str(totalpages) + r'}{\relax}{Doc-Start}{}}' + '\n')
+    xwm_file.write(r'\relax'+'\n'\
+        r'\xwmnewlabel{xwmlastpage}{{}{' + str(totalpages) + r'}{\relax}{Doc-Start}{}}'+'\n')
     xwm_file.close()
 
 
@@ -198,7 +204,11 @@ def args_validator(args, all_defargs):
         sn1 = set_validrange(int(args.sn[1]), imin, imax)
     args.sn = (sn0, sn1)
 
+    # s/n seed
     args.sns = set_validrange(int(args.sns), imin, imax)
+
+    # number of columsn
+    args.col = set_validrange(int(args.col), 1, 100)
 
     iminb = 0
     imaxb = 500
@@ -275,51 +285,51 @@ def create_tex_main(args, file_bills):
         Creates the bills with the serial numbers. One bill per page.
     """
 
-    lbillvalues = args.bv
-
     out = codecs.open(DIR_PATH/file_bills, 'w', encoding='utf8')
-    out.write(r'\documentclass{article}' + '\n')
+    out.write(r'\documentclass{article}'+'\n')
     out.write('\\usepackage[paperheight={1}mm, paperwidth={0}mm, margin=0pt]'\
-        .format(args.width, args.height) + '{geometry}' + '\n')
+        .format(args.width, args.height) + '{geometry}'+'\n')
 
-    out.write(r'\usepackage{tikz}' + '\n')
-    out.write(r'\usetikzlibrary{positioning}' + '\n')
-    out.write(r'\usepackage{forloop}' + '\n')
+    out.write(r'\usepackage{tikz}'+'\n')
+    out.write(r'\usetikzlibrary{positioning}'+'\n')
+    out.write(r'\usepackage{forloop}'+'\n')
 
     get_serialnumber_setting(args, out)
 
-    out.write(r'\newcounter{numpages}' + '\n')
-    out.write(r'\pagestyle{empty}' + '\n')
-    out.write(r'\begin{document}' + '\n')
+    out.write(r'\newcounter{numpages}'+'\n')
+    out.write(r'\pagestyle{empty}'+'\n')
+    out.write(r'\begin{document}'+'\n')
+
+    lbillvalues = args.bv
 
     for i in range(len(args.nop)):
 
         out.write(r'% % % ' + str(lbillvalues[i]) + '\n')
         out.write(r'\forloop{numpages}{1}{\value{numpages} < '+ \
-            str(args.nop[i] * int(args.bpp) + 1) +'}{%' + '\n')
+            str(args.nop[i] * int(args.bpp) + 1) +'}{%'+'\n')
 
         if args.d:
             out.write(r' \mypics{example-image-a}{example-image-b}{' + \
-                str(lbillvalues[i]) + '}' + '\n')
+                str(lbillvalues[i]) + '}'+'\n')
         else:
             if not args.s:
                 if args.frontback:
                     out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
-                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}{}' + '\n')
+                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}{}'+'\n')
                 else:
                     out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
-                        r'{bills/money-' + str(lbillvalues[i]) + r'}{}' + '\n')
+                        r'{bills/money-' + str(lbillvalues[i]) + r'}{}'+'\n')
             else:
                 if args.frontback:
                     out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
-                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}' + '\n')
+                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}'+'\n')
                 else:
                     out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
-                        r'{bills/money-' + str(lbillvalues[i]) + r'}' + '\n')
+                        r'{bills/money-' + str(lbillvalues[i]) + r'}'+'\n')
 
-        out.write(r'}' + '\n\n')
+        out.write(r'}'+'\n\n')
 
-    out.write(r'\end{document}' + '\n')
+    out.write(r'\end{document}'+'\n')
     out.close()
 
 
@@ -331,45 +341,42 @@ def get_serialnumber_setting(args, out):
     # get serialnumber settings from arguments
     xyf = Serialnumber(args)
 
-    out.write(r'\usepackage[T1]{fontenc}' + '\n')
-    out.write(r'\usepackage{emerald}' + '\n')
+    out.write(r'\usepackage[T1]{fontenc}'+'\n')
+    out.write(r'\usepackage{emerald}'+'\n')
 
     if not args.s:
         if args.font != 'standard':
-            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{%' + '\n')
+            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{%'+'\n')
             out.write(r'  \fontsize{' + str(xyf.fontsize) + r'mm}{' + \
                 str(xyf.fontsize + 1) + r'mm}' + str(LIST_OF_FONTS.get(args.font)) + \
-                r'\fontseries{m}\fontshape{n}\selectfont}' + '\n')
+                r'\fontseries{m}\fontshape{n}\selectfont}'+'\n')
         else:
             out.write(r'\DeclareRobustCommand{\thisfontsfamily}{\fontsize{' + \
             str(xyf.fontsize) + r'mm}{' + str(xyf.fontsize + 1) + \
-                r'mm}\rmfamily\selectfont}' + '\n')
+                r'mm}\rmfamily\selectfont}'+'\n')
 
-        out.write(r'\usepackage{fmtcount}' + '\n')
+        out.write(r'\usepackage{fmtcount}'+'\n')
         out.write(r'\usepackage[first=' + str(args.sn[0]) + ', last=' + str(args.sn[1]) + \
-            r', seed=' + str(args.sns) + ', counter=serialnumber]{lcg}' + '\n')
+            r', seed=' + str(args.sns) + ', counter=serialnumber]{lcg}'+'\n')
 
     strdebug = ''
-    strcol1 = 'lightgray'
-    strcol2 = 'lightgray'
     if args.d:
-        out.write(r'\newcounter{ctdebugger}' + '\n')
+        out.write(r'\newcounter{ctdebugger}'+'\n')
+        out.write(r'\setcounter{ctdebugger}{1}'+'\n')
         strdebug = r' \thisfontsfamily #3 -- '
-        if args.frontback:
-            strcol2 = 'yellow'
 
     if not args.s and not args.sb:
         # if serial number on front and back
-        print_serialnumbers(out, xyf, strdebug, strcol1, strcol2)
+        print_serialnumbers(args, out, xyf, strdebug)
     elif args.sb:
         # if serial number on front and back
-        print_no_serial_on_backside(out, xyf, strdebug, strcol1, strcol2)
+        print_no_serial_on_backside(out, xyf, strdebug)
     else:
         # if NO serial number on front AND back
-        print_no_serial(args, out, strcol1, strcol2)
+        print_no_serial(args, out)
 
 
-def print_no_serial(args, out, strcol1, strcol2):
+def print_no_serial(args, out):
     """
         do this, if the user doesn't want serial numbers on hers/his bills
     """
@@ -379,72 +386,146 @@ def print_no_serial(args, out, strcol1, strcol2):
     else:
         out.write(r'\newcommand{\mypics}[2]')
 
-    out.write(r'{\begin{tikzpicture}[remember picture,overlay]' + '\n'\
-        r'\node (thispage) [shape=rectangle, fill=' + strcol1 + \
+    out.write('{%'+'\n'+r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t' + r'\node (thispage) [shape=rectangle'\
         r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
-        r'at (current page.center) {};' + '\n' + \
-        r'\node at (thispage.center) '\
-        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};' + '\n')
+        r'at (current page.center) {};'+'\n'\
+        '\t' + r'\node at (thispage.center) '\
+        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n')
     if args.d:
-        out.write(r'\stepcounter{ctdebugger}' + '\n')
-        out.write(r'\node [anchor=south] at (thispage.south) {\thectdebugger - #3};' + '\n')
-    out.write(r'\end{tikzpicture}' + '\n' + \
-        r'\newpage' + '\n' + \
-        r'\begin{tikzpicture}[remember picture,overlay]' + '\n'\
-        r'\node (thispage) [shape=rectangle, fill=' + strcol2 + r', '\
+        out.write('\t'+r'\node [anchor=south] at (thispage.south) {\thectdebugger - #3};'+'\n')
+    out.write(r'\end{tikzpicture}'+'\n')
+    if args.d:
+        out.write(r'\stepcounter{ctdebugger}'+'\n')
+    out.write(r'\newpage'+'\n' \
+        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t' + r'\node (thispage) [shape=rectangle' + r', '\
         r'minimum height=\paperheight, '\
-        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};' + '\n'\
-        r'\node at (thispage.center) '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n'\
+        '\t' + r'\node at (thispage.center) '\
         r'{\includegraphics[width=\paperwidth, height=\paperheight]{#2}};')
 
     if args.d:
-        out.write(r'\node [anchor=south] at (thispage.south) {\thectdebugger - #3};' + '\n')
+        out.write(r'\node [anchor=south] at (thispage.south) {\thectdebugger - #3};'+'\n')
 
-    out.write(r'\end{tikzpicture}\newpage}' + '\n')
+    out.write(r'\end{tikzpicture}'+'\n'+r'\newpage}'+'\n')
 
 
-def print_no_serial_on_backside(out, xyf, strdebug, strcol1, strcol2):
+def print_no_serial_on_backside(out, xyf, strdebug):
     """
         do this, if the user doesn't want serial numbers on the back of the bills
     """
     # if serial number on front and back
-    out.write(r'\newcommand{\mypics}[3]{\rand\begin{tikzpicture}[remember picture,overlay]'\
-        r'\node (thispage) [shape=rectangle, fill=' + strcol1 + \
+    out.write(r'\newcommand{\mypics}[3]{\rand'+'\n'\
+        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle'\
         r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
-        r'at (current page.center) {};\node at (thispage.center) '\
-        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};\node[xshift=' +\
+        r'at (current page.center) {};'+'\n'\
+        '\t'+r'\node at (thispage.center) '\
+        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n'\
+        '\t'+r'\node[xshift='+\
         str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm] at (thispage.center) '\
-        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'\
-        r'\end{tikzpicture}' + \
-        r'\newpage' + \
-        r'\begin{tikzpicture}[remember picture,overlay]\node '\
-        r'(thispage) [shape=rectangle, fill=' + strcol2 + r', minimum height=\paperheight, '\
-        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};\node at '\
-        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'\
-        r'\end{tikzpicture}\newpage}' + '\n')
+        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'+'\n'\
+        r'\end{tikzpicture}'+'\n'\
+        r'\newpage'+'\n'\
+        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n'\
+        '\t'+r'\node at '\
+        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
+        r'\end{tikzpicture}'+'\n'+r'\newpage}'+'\n')
 
 
-def print_serialnumbers(out, xyf, strdebug, strcol1, strcol2):
+def print_serialnumbers(args, out, xyf, strdebug):
     """
         do this, if the user wants serial numbers both sides of the bills
     """
+
+    debugtext = ''
+    debugnode = ''
+    if args.d:
+        debugtext = r', text=black, font=\bfseries'
+        debugnode = '\t'+r'\node[opacity=.35] at (thispage.center) '
+    else:
+        debugnode = '\t'+r'\node at (thispage.center) '
+
+
     # if serial number on front and back
-    out.write(r'\newcommand{\mypics}[3]{\rand\begin{tikzpicture}[remember picture,overlay]'\
-        r'\node (thispage) [shape=rectangle, fill=' + strcol1 + \
+    out.write(r'\newcommand{\mypics}[3]{\rand'+'\n'\
+        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle'\
         r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
-        r'at (current page.center) {};\node at (thispage.center) '\
-        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};\node[xshift=' + \
-        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm] at (thispage.center) '\
-        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'\
-        r'\end{tikzpicture}' + \
-        r'\newpage' + \
-        r'\begin{tikzpicture}[remember picture,overlay]\node '\
-        r'(thispage) [shape=rectangle, fill=' + strcol2 + r', minimum height=\paperheight, '\
-        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};\node at '\
-        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'\
-        r'\node[xshift=' + str(xyf.shiftbx) + r'mm, yshift=' + str(xyf.shiftby) + r'mm] at '\
+        r'at (current page.center) {};'+'\n')
+
+    out.write(debugnode)
+    out.write(r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n'\
+        '\t'+r'\node[xshift='+\
+        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm' + debugtext +\
+        r'] at (thispage.center) '\
+        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'+'\n'\
+        r'\end{tikzpicture}'+'\n'\
+        r'\newpage'+'\n'\
+        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n')
+
+    out.write(debugnode)
+    out.write(r'{\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
+        '\t'+r'\node[xshift=' + str(xyf.shiftbx) + r'mm, yshift=' + str(xyf.shiftby) + r'mm' +\
+        debugtext + r'] at '\
         r'(thispage.center) {\thisfontsfamily' + strdebug + r'\padzeroes[10]{'\
-        r'\decimal{serialnumber}}};\end{tikzpicture}\newpage}' + '\n')
+        r'\decimal{serialnumber}}};'+'\n'\
+        r'\end{tikzpicture}'+'\n'+r'\newpage}'+'\n')
+
+
+def make_backside_array(args, deq_input, irow, icol):
+    """
+        Makes the required array for mulitcolumn printing.
+        Derived from:
+        https://www.geeksforgeeks.org/python-slicing-reverse-array-groups-given-size/
+    """
+
+    # convert deque to list
+    lst = list()
+    for deq in deq_input:
+        lst.append(deq)
+    deq_input = lst
+
+    # set starting index at 0
+    start = int(0)
+
+    # run a while loop len(input)/irow times
+    # because there will be len(input)/k number
+    # of groups of size irow
+    result = []
+    while start < len(deq_input):
+
+        # if length of group is less than irow
+        # that means we are left with only last
+        # group reverse remaining elements
+        if len(deq_input[start:]) < int(irow):
+            result = result + list(reversed(deq_input[start:]))
+            break
+
+        # select current group of size of k
+        # reverse it and concatenate
+        result = result + list(reversed(deq_input[start:start + irow]))
+        start = start + irow
+
+    if args.bpp % icol != 0:
+        dq_tmp = deque()
+        [dq_tmp.append(i) for i in result] # DAMN YOU, pylint!
+        dq_tmp.rotate(int(irow))
+        result = dq_tmp
+    else:
+        result = reversed(result)
+
+        dq_tmp = deque()
+        [dq_tmp.append(i) for i in result] # pylint, you do like a vacuum does!
+        #dq.rotate(int(irow))
+        result = dq_tmp
+
+    return result
 
 
 def create_printable_doc(args, totalpages, file_bills, file_print):
@@ -453,15 +534,23 @@ def create_printable_doc(args, totalpages, file_bills, file_print):
     """
 
     out = codecs.open(DIR_PATH/file_print, 'w', encoding='utf8')
-    out.write(r'% !TeX TS-program = lualatex' + '\n') # TeXstudio magic comment!
-    out.write(r'\documentclass['+ args.ps +', landscape]{article}' + '\n')
-    out.write(r'\usepackage{pdfpages}' + '\n')
-    out.write(r'\begin{document}' + '\n')
-
-    icol = int(2) # FIXED VALUE!!! I'm not that good at math ... I don't need anything else.
+    out.write(r'% !TeX TS-program = lualatex'+'\n') # TeXstudio magic comment!
+    out.write(r'\documentclass['+ args.ps +', landscape]{article}'+'\n')
+    out.write(r'\usepackage{pdfpages}'+'\n')
+    out.write(r'\begin{document}'+'\n')
 
     billsize = 'width=' + str(round(args.width, 2)) + 'mm, height=' + \
         str(round(args.height, 2)) + 'mm, '
+
+    # Not every combination of rows/columns seem to work. I'm not that good at math ...
+    # It works best, if all rows and columns are completly filled.
+    # Maybe you can help?
+    icol = int(args.col)
+
+    ibpp = int(args.bpp)
+
+    # number of rows in final pdf
+    irow = int(args.bpp / icol)
 
     #
     #
@@ -470,42 +559,42 @@ def create_printable_doc(args, totalpages, file_bills, file_print):
         ibppcheck = 0
         front_page = deque()
         back_page = deque()
-        for ibillnum in range(pgoffset * args.bpp, (pgoffset * args.bpp) + 2 * args.bpp):
+
+        for ibillnum in range(pgoffset * ibpp, (pgoffset * ibpp) + 2 * ibpp):
             ibillnum += 1
-            if ibppcheck < args.bpp:
+            if ibppcheck < ibpp:
                 if ibillnum % 2 == 0:
                     back_page.append(ibillnum)
                     ibppcheck += 1
                 else:
+                    # add all odd numbers
                     front_page.append(ibillnum)
 
-        # makes {8,10,12,2,4,6} out of {2,4,6,8,10,12}
-        back_page.rotate(int(args.bpp/icol))
+        back_page = make_backside_array(args, back_page, irow, icol)
 
-        # number of rows in final pdf
-        irow = int(args.bpp / icol)
-
-        if args.bpp % 2 != 0:
-            irow = int((args.bpp + 1) / icol)
+        # needs to add a place holder if the last row is incomplete
+        if ibpp % icol != 0:
+            irow = int((ibpp + 1) / icol)
             back_page.insert(irow - 1, '')
+            front_page.insert(ibpp, '')
 
-        out.write(r'\includepdf[pages={' + ', '.join(str(x) for x in front_page) + r'}, '\
+        out.write(r'\includepdf[pages={'+', '.join(str(x) for x in front_page) + r'}, '\
             r'offset=0.0mm 0.0mm, noautoscale, ' + billsize + 'nup=' + str(icol) + 'x' + \
             str(irow) + r', pagecommand={\thispagestyle{empty}}, column=true, '\
-            r'columnstrict=true]{' + file_bills + '}' + '\n')
+            r'columnstrict=true]{' + file_bills + '}'+'\n')
 
-        out.write(r'\includepdf[pages={' + ', '.join(str(x) for x in back_page) + \
+        out.write(r'\includepdf[pages={'+', '.join(str(x) for x in back_page) + \
             '}, offset=' + str(round(float(args.dupoff[0]), 2)) + 'mm ' + \
             str(round(float(args.dupoff[1]), 2)) + 'mm, noautoscale, ' + billsize + \
             r'nup=' + str(icol) + 'x' + str(irow) + \
             r', pagecommand={\thispagestyle{empty}}, column=true, '\
-            r'columnstrict=true]{' + file_bills + '}' + '\n')
+            r'columnstrict=true]{' + file_bills + '}'+'\n')
 
         pgoffset += 2
     #
     #
 
-    out.write(r'\end{document}' + '\n')
+    out.write(r'\end{document}'+'\n')
     out.close()
 
 
