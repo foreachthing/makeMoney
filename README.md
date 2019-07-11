@@ -2,6 +2,9 @@
 Board-Game Money-Maker - create/print your own money for your favorite (board) game.
 This script also adds a "unique" serial number as well!
 
+I made this script to create Money for the Harry Potter Monopoly(R) Board-Game found here: http://www.gunook.com/das-monopol-des-zauberers-harry-potter-monopoly/
+Unfortunately, the links are all dead and I still don't have permission to post the orginial, hi-res images of the bills... I guess you have to come up with your own design.
+
 ![ONE bill, two-sided](https://github.com/foreachthing/makeMoney/blob/master/scrshot-000.png)
 This is a preview of the first and second (front and back) page. You can specify the range of the serial number (and/or location, font(&ast;) and size) between 0 and 2^31-1. Then each bill gets a random(&ast;&ast;) number assigned and it will come out zero-padded.
 
