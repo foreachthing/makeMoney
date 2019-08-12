@@ -9,8 +9,8 @@ import codecs
 import subprocess
 from shutil import copyfile
 import argparse
-import random # for seed
 from collections import deque
+import random
 
 # define files
 DIR_PATH = Path(__file__).resolve().parent
@@ -102,7 +102,7 @@ def argumentparser():
     # serial number seed
     grp_sn.add_argument('-sns', metavar='int', type=int, default=random.randint(0, MAXIMUM), \
         help='Define seed for randomness of serial numbers. Default: a random (right now: '\
-        '%(default)s - will be different next time) number will be used.')
+        '%(default)s - will change with next run) number will be used.')
 
     # serial number START -> END value
     grp_sn.add_argument('-sn', nargs=2, metavar=('START', 'END'), default=(1, MAXIMUM), \
@@ -117,26 +117,28 @@ def argumentparser():
         choices=LIST_OF_FONTS.keys(), help='Font for serial number label. Using the '\
         '"Emerald" package. Type "-font ?" for a list of options. Warning: Font names '\
         'are case sensitive! Default: %(default)s')
+    grp_sn.add_argument('-snh', action='store_true', default=False, \
+        help='Print serial number as HEX number. (Default: %(default)s)')
 
     grp_layout = parser.add_argument_group('Use these options to use a '\
         'different image for the front and back side')
     grp_layout.add_argument('-frontback', action='store_true', default=False, \
-        help='If set, you need to specify "-fron" and "-back" as well. (Default: %(default)s)')
+        help='If set, you need to specify "-front" and "-back" as well. (Default: %(default)s)')
     grp_layout.add_argument('-front', metavar='str', type=str, default='money', \
         help='Front image prefix. Default: %(default)s -> money-1, money-5 etc.')
     grp_layout.add_argument('-back', metavar='str', type=str, default='money-b', \
         help='Back image prefix. Default: %(default)s -> money-b-1, money-b-5 etc.')
-    grp_layout.add_argument('-snboff', nargs=2, metavar=('X', 'Y'), default=('-44', '-0.2'), \
+    grp_layout.add_argument('-snboffset', nargs=2, metavar=('X', 'Y'), default=('-44', '-0.2'), \
         type=float, help='X Y offset, in mm and starting from the center, of serial number '\
         'label for the BACK side (default: %(default)s mm)')
 
     grp_bills = parser.add_argument_group('Number of Pages of bills of each value', \
-        'Maximum of 500 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and 8 pages. '\
+        'Maximum of 1000 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and 8 pages. '\
         'Example: "-nop 5 7 -bv 10 20" will create a document of 12 pages. '\
         '5 pages of 10s and 7 pages of 20s.')
     # 1, 5, 10, 20, 50, 100, 500
     grp_bills.add_argument('-nop', nargs='*', type=int, \
-        default=('1', '1', '1', '1', '1', '1', '1'), \
+        default=('20', '6', '8', '6', '6', '16', '8'), \
         help='Number of pages of all the bills. Default: %(default)s')
     grp_bills.add_argument('-bv', nargs='*', type=int, \
         default=('1', '5', '10', '20', '50', '100', '500'), \
@@ -149,7 +151,7 @@ def argumentparser():
 
     try:
         args = parser.parse_args()
-
+        
         # To get all defaults:
         all_defargs = {}
         for key in vars(args):
@@ -211,7 +213,7 @@ def args_validator(args, all_defargs):
     args.col = set_validrange(int(args.col), 1, 100)
 
     iminb = 0
-    imaxb = 500
+    imaxb = 1000
 
     if len(args.bv) != len(args.nop):
         print('Number of parameters for "-bv" and "-nop" must match.')
@@ -245,7 +247,7 @@ def main(args, all_defargs):
     cmd = ['lualatex', '-output-directory', str(DIR_PATH), '-interaction=nonstopmode', \
         str(DIR_PATH/(file_bills + files_ext_tex))]
 
-    # make two runs because of serial numbers
+    # make two runs because of some weird sht with the bills....?!?
     for i in range(2):
         proc = subprocess.Popen(cmd)
         proc.communicate()
@@ -279,6 +281,34 @@ def main(args, all_defargs):
         print('Something went wrong with ' + (file_bills + files_ext_tex))
         exit(1)
 
+def get_random_list(args):
+    """
+        pylint ... I don't like you anymore
+    """
+    itotalallbills = 0
+    for i in range(len(args.nop)):
+        itotalallbills += args.nop[i] * args.bpp
+    print('\n### Total Bills: {0}\n'.format(str(itotalallbills)))
+
+    random.seed(args.sns)
+    lstserial = list()
+    newmaxsn = args.sn[1]
+    if itotalallbills > (args.sn[1] - args.sn[0]):
+        newmaxsn = args.sn[1] + args.sn[0] + itotalallbills
+
+    print()
+
+    cnt = 0
+    while len(lstserial) < itotalallbills:
+        rnd = random.randint(args.sn[0], newmaxsn)
+        if rnd not in lstserial:
+            lstserial.append(rnd)
+            cnt += 1
+            if itotalallbills > 2000:
+                print_progress_bar(cnt, itotalallbills, prefix='Randomizing: ')
+
+    return lstserial
+
 
 def create_tex_main(args, file_bills):
     """
@@ -292,42 +322,60 @@ def create_tex_main(args, file_bills):
 
     out.write(r'\usepackage{tikz}'+'\n')
     out.write(r'\usetikzlibrary{positioning}'+'\n')
-    out.write(r'\usepackage{forloop}'+'\n')
 
     get_serialnumber_setting(args, out)
 
-    out.write(r'\newcounter{numpages}'+'\n')
     out.write(r'\pagestyle{empty}'+'\n')
     out.write(r'\begin{document}'+'\n')
 
     lbillvalues = args.bv
 
+    lstserial = get_random_list(args)
+
+    print('\n')
+
+    cnt = 0
+    snum = ''
+    padlen = len(str(args.sn[1]))
+
     for i in range(len(args.nop)):
 
         out.write(r'% % % ' + str(lbillvalues[i]) + '\n')
-        out.write(r'\forloop{numpages}{1}{\value{numpages} < '+ \
-            str(args.nop[i] * int(args.bpp) + 1) +'}{%'+'\n')
 
-        if args.d:
-            out.write(r' \mypics{example-image-a}{example-image-b}{' + \
-                str(lbillvalues[i]) + '}'+'\n')
-        else:
-            if not args.s:
-                if args.frontback:
-                    out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
-                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}{}'+'\n')
-                else:
-                    out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
-                        r'{bills/money-' + str(lbillvalues[i]) + r'}{}'+'\n')
+        itotalbills = args.nop[i] * args.bpp # total bills of current value
+        itb = range(0, itotalbills)
+        scnt = 0
+
+        while scnt < len(itb):
+
+            if args.snh:
+                snum = '{:02X}'.format(lstserial[cnt])
             else:
-                if args.frontback:
-                    out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
-                        r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}'+'\n')
-                else:
-                    out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
-                        r'{bills/money-' + str(lbillvalues[i]) + r'}'+'\n')
+                snum = str(lstserial[cnt]).zfill(padlen)
 
-        out.write(r'}'+'\n\n')
+            if args.d:
+                out.write(r'\mypics{example-image-a}{example-image-b}{' + \
+                    str(lbillvalues[i]) + '}{' + (snum) + r'}'+'\n')
+            else:
+                if not args.s:
+                    if args.frontback:
+                        out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
+                            r'}{bills/' + args.back + '-' + str(lbillvalues[i]) +\
+                            r'}{}{' + snum + r'}'+'\n')
+                    else:
+                        out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
+                            r'{bills/money-' + str(lbillvalues[i]) + r'}{}{' + snum + r'}'+'\n')
+                else:
+                    if args.frontback:
+                        out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
+                            r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}{}{}'+'\n')
+                    else:
+                        out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
+                            r'{bills/money-' + str(lbillvalues[i]) + r'}{}{}'+'\n')
+            scnt += 1
+            cnt += 1
+
+        out.write('\n\n')
 
     out.write(r'\end{document}'+'\n')
     out.close()
@@ -355,14 +403,8 @@ def get_serialnumber_setting(args, out):
             str(xyf.fontsize) + r'mm}{' + str(xyf.fontsize + 1) + \
                 r'mm}\rmfamily\selectfont}'+'\n')
 
-        out.write(r'\usepackage{fmtcount}'+'\n')
-        out.write(r'\usepackage[first=' + str(args.sn[0]) + ', last=' + str(args.sn[1]) + \
-            r', seed=' + str(args.sns) + ', counter=serialnumber]{lcg}'+'\n')
-
     strdebug = ''
     if args.d:
-        out.write(r'\newcounter{ctdebugger}'+'\n')
-        out.write(r'\setcounter{ctdebugger}{1}'+'\n')
         strdebug = r' \thisfontsfamily #3 -- '
 
     if not args.s and not args.sb:
@@ -416,8 +458,8 @@ def print_no_serial_on_backside(out, xyf, strdebug):
         do this, if the user doesn't want serial numbers on the back of the bills
     """
     # if serial number on front and back
-    out.write(r'\newcommand{\mypics}[3]{\rand'+'\n'\
-        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+    out.write(r'\newcommand{\mypics}[4]{'+'\n'\
+        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
         '\t'+r'\node (thispage) [shape=rectangle'\
         r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
         r'at (current page.center) {};'+'\n'\
@@ -425,20 +467,20 @@ def print_no_serial_on_backside(out, xyf, strdebug):
         r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n'\
         '\t'+r'\node[xshift='+\
         str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm] at (thispage.center) '\
-        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'+'\n'\
-        r'\end{tikzpicture}'+'\n'\
-        r'\newpage'+'\n'\
-        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        r'{\thisfontsfamily' + strdebug + r'#4};'+'\n'\
+        r'  \end{tikzpicture}'+'\n'\
+        r'  \newpage'+'\n'\
+        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
         '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
         r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n'\
         '\t'+r'\node at '\
         r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
-        r'\end{tikzpicture}'+'\n'+r'\newpage}'+'\n')
+        r'  \end{tikzpicture}'+'\n'+r'  \newpage'+'\n}'+'\n')
 
 
 def print_serialnumbers(args, out, xyf, strdebug):
     """
-        do this, if the user wants serial numbers both sides of the bills
+        do this, if the user wants serial numbers on front and back
     """
 
     debugtext = ''
@@ -449,10 +491,8 @@ def print_serialnumbers(args, out, xyf, strdebug):
     else:
         debugnode = '\t'+r'\node at (thispage.center) '
 
-
-    # if serial number on front and back
-    out.write(r'\newcommand{\mypics}[3]{\rand'+'\n'\
-        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+    out.write(r'\newcommand{\mypics}[4]{'+'\n'\
+        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
         '\t'+r'\node (thispage) [shape=rectangle'\
         r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
         r'at (current page.center) {};'+'\n')
@@ -462,10 +502,10 @@ def print_serialnumbers(args, out, xyf, strdebug):
         '\t'+r'\node[xshift='+\
         str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm' + debugtext +\
         r'] at (thispage.center) '\
-        r'{\thisfontsfamily' + strdebug + r'\padzeroes[10]{\decimal{serialnumber}}};'+'\n'\
-        r'\end{tikzpicture}'+'\n'\
-        r'\newpage'+'\n'\
-        r'\begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        r'{\thisfontsfamily' + strdebug + r'#4};'+'\n'\
+        r'  \end{tikzpicture}'+'\n'\
+        r'  \newpage'+'\n'\
+        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
         '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
         r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n')
 
@@ -473,9 +513,8 @@ def print_serialnumbers(args, out, xyf, strdebug):
     out.write(r'{\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
         '\t'+r'\node[xshift=' + str(xyf.shiftbx) + r'mm, yshift=' + str(xyf.shiftby) + r'mm' +\
         debugtext + r'] at '\
-        r'(thispage.center) {\thisfontsfamily' + strdebug + r'\padzeroes[10]{'\
-        r'\decimal{serialnumber}}};'+'\n'\
-        r'\end{tikzpicture}'+'\n'+r'\newpage}'+'\n')
+        r'(thispage.center) {\thisfontsfamily' + strdebug + r'#4};'+'\n'\
+        r'  \end{tikzpicture}'+'\n'+r'  \newpage'+'\n}'+'\n')
 
 
 def make_backside_array(args, deq_input, irow, icol):
@@ -504,13 +543,13 @@ def make_backside_array(args, deq_input, irow, icol):
         # that means we are left with only last
         # group reverse remaining elements
         if len(deq_input[start:]) < int(irow):
-            result = result + list(reversed(deq_input[start:]))
+            result += list(reversed(deq_input[start:]))
             break
 
         # select current group of size of k
         # reverse it and concatenate
-        result = result + list(reversed(deq_input[start:start + irow]))
-        start = start + irow
+        result += list(reversed(deq_input[start:start + irow]))
+        start += irow
 
     if args.bpp % icol != 0:
         dq_tmp = deque()
@@ -522,7 +561,6 @@ def make_backside_array(args, deq_input, irow, icol):
 
         dq_tmp = deque()
         [dq_tmp.append(i) for i in result] # pylint, you do like a vacuum does!
-        #dq.rotate(int(irow))
         result = dq_tmp
 
     return result
@@ -542,11 +580,10 @@ def create_printable_doc(args, totalpages, file_bills, file_print):
     billsize = 'width=' + str(round(args.width, 2)) + 'mm, height=' + \
         str(round(args.height, 2)) + 'mm, '
 
-    # Not every combination of rows/columns seem to work. I'm not that good at math ...
+    # Not every combination of rows/columns seem to work.
+    # I'm not that good at math ...
     # It works best, if all rows and columns are completly filled.
-    # Maybe you can help?
     icol = int(args.col)
-
     ibpp = int(args.bpp)
 
     # number of rows in final pdf
@@ -605,8 +642,8 @@ class Serialnumber:
 
         self._shiftx = args.snoff[0]
         self._shifty = args.snoff[1]
-        self._shiftbx = args.snboff[0]
-        self._shiftby = args.snboff[1]
+        self._shiftbx = args.snboffset[0]
+        self._shiftby = args.snboffset[1]
         self._fontsize = args.fsize
         if args.d:
             self._fontsize = round(args.fsize * 3, 2)
@@ -635,6 +672,33 @@ class Serialnumber:
     def fontsize(self):
         """ get/set font size in mm """
         return self._fontsize
+
+
+# Print iterations progress
+def print_progress_bar(iteration, total, prefix=''):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+    """
+    suffix = ''
+    decimals = 1
+    length = 50 # int((os.get_terminal_size(1).columns - 20) / 2)
+    fill = '█'
+
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledlength = int(length * iteration // total)
+    pbar = fill * filledlength + '-' * (length - filledlength)
+    print('\r%s |%s| %s%% %s' % (prefix, pbar, percent, suffix), end='\r')
+    # Print New Line on Complete
+    if iteration == total:
+        print()
 
 
 ARGS, ALL_DEFARGS = argumentparser()
