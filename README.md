@@ -58,9 +58,9 @@ This is a preview of the first and second (front and back) page. You can specify
 usage: make_money.py [-h] [-d] [-ps str] [-bpp int] [-col int] [-width float]
                      [-height float] [-dupoff X Y] [-s] [-sb] [-sns int]
                      [-sn START END] [-snoff X Y] [-fsize float]
-                     [-font FONTNAME] [-frontback] [-front str] [-back str]
-                     [-snboff X Y] [-nop [NOP [NOP ...]]] [-bv [BV [BV ...]]]
-                     [-rec]
+                     [-font FONTNAME] [-snh] [-frontback] [-front str]
+                     [-back str] [-snboffset X Y] [-nop [NOP [NOP ...]]]
+                     [-bv [BV [BV ...]]] [-rec]
 
 ** Board Game Money-Maker ** Make your own custom money for your favorite
 board game. Use the different options to customize your money-set. Use the
@@ -95,8 +95,8 @@ Serial Number Settings:
   -sb                   Turn serial numbers on the back side off. (Default:
                         False)
   -sns int              Define seed for randomness of serial numbers. Default:
-                        a random (right now: 700788315 - will be different
-                        next time) number will be used.
+                        a random (right now: 1562074427 - will change with
+                        next run) number will be used.
   -sn START END         Start and end value of serial number. Minimum = 0,
                         Maximum = 2'147'483'647, default: (1, 2147483647).
   -snoff X Y            X Y offset, in mm and starting from the center, of
@@ -106,25 +106,26 @@ Serial Number Settings:
                         package. Type "-font ?" for a list of options.
                         Warning: Font names are case sensitive! Default:
                         standard
+  -snh                  Print serial number as HEX number. (Default: False)
 
 Use these options to use a different image for the front and back side:
-  -frontback            If set, you need to specify "-fron" and "-back" as
+  -frontback            If set, you need to specify "-front" and "-back" as
                         well. (Default: False)
   -front str            Front image prefix. Default: money -> money-1, money-5
                         etc.
   -back str             Back image prefix. Default: money-b -> money-b-1,
                         money-b-5 etc.
-  -snboff X Y           X Y offset, in mm and starting from the center, of
+  -snboffset X Y        X Y offset, in mm and starting from the center, of
                         serial number label for the BACK side (default:
                         ('-44', '-0.2') mm)
 
 Number of Pages of bills of each value:
-  Maximum of 500 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and
+  Maximum of 1000 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and
   8 pages. Example: "-nop 5 7 -bv 10 20" will create a document of 12 pages.
   5 pages of 10s and 7 pages of 20s.
 
-  -nop [NOP [NOP ...]]  Number of pages of all the bills. Default: ('1', '1',
-                        '1', '1', '1', '1', '1')
+  -nop [NOP [NOP ...]]  Number of pages of all the bills. Default: ('20', '6',
+                        '8', '6', '6', '16', '8')
   -bv [BV [BV ...]]     List of Bill Values. Changes also required in "-nop"
                         and make sure your bill-image exists in the sub-
                         directory. Default: ('1', '5', '10', '20', '50',
