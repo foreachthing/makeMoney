@@ -48,8 +48,8 @@ def argumentparser():
     parser = argparse.ArgumentParser(
         prog=os.path.basename(__file__),
         description='** Board Game Money-Maker ** Make your own custom money for your favorite ' \
-            'board game. Use the different options to customize your money-set. Use the images ' \
-            'stored in the "./bills" sub-directory.',
+            'board game or your kids. Use the different options to customize your money-set. ' \
+            'Use the images stored in the "./bills" sub-directory.',
         allow_abbrev=False,
         epilog='NOTE: '\
             'Best results are with complete rows and columns '\
@@ -59,6 +59,11 @@ def argumentparser():
     parser.add_argument('-d', action='store_true', default=False, \
     help='For debugging or testing only! Use the dummy image in the subdirectory, rather than ' \
         'the real ones. Fontsize is 3 times default, label is centered to page. '\
+        '(Default: %(default)s)')
+    
+    parser.add_argument('-pc', action='store_true', default=False, \
+    help='For printer calibration only. Will print serial number as with -d on example-image-a '\
+        'and example-image-b background (from graphicx package). -nop and -bv are overridden.'\
         '(Default: %(default)s)')
 
     grp_page = parser.add_argument_group('Page and bill settings')
@@ -139,7 +144,7 @@ def argumentparser():
     # 1, 5, 10, 20, 50, 100, 500
     grp_bills.add_argument('-nop', nargs='*', type=int, \
         default=('20', '6', '8', '6', '6', '16', '8'), \
-        help='Number of pages of all the bills. Default: %(default)s')
+        help='Abount of pages of all the bills. Default: %(default)s')
     grp_bills.add_argument('-bv', nargs='*', type=int, \
         default=('1', '5', '10', '20', '50', '100', '500'), \
         help='List of Bill Values. Changes also required in "-nop" and make sure your '\
@@ -161,6 +166,44 @@ def argumentparser():
 
     except IOError as msg:
         parser.error(str(msg))
+
+class Serialnumber:
+    """ pylint thinks this would be better ... to out-source such things """
+
+    def __init__(self, args):
+
+        self._shiftx = args.snoff[0]
+        self._shifty = args.snoff[1]
+        self._shiftbx = args.snboffset[0]
+        self._shiftby = args.snboffset[1]
+        self._fontsize = args.fsize
+        if args.d:
+            self._fontsize = round(args.fsize * 3, 2)
+            self._shiftx = 0
+            self._shifty = 0
+            self._shiftbx = 0
+            self._shiftby = 0
+
+    @property
+    def shiftx(self):
+        """ get/set shift-x """
+        return self._shiftx
+    @property
+    def shifty(self):
+        """ get/set shift-y """
+        return self._shifty
+    @property
+    def shiftbx(self):
+        """ get/set back side shift-x """
+        return self._shiftbx
+    @property
+    def shiftby(self):
+        """ get/set back side shift-x """
+        return self._shiftby
+    @property
+    def fontsize(self):
+        """ get/set font size in mm """
+        return self._fontsize
 
 
 def set_validrange(value, mini, maxi):
@@ -227,10 +270,137 @@ def args_validator(args, all_defargs):
     args.bpp = set_validrange(args.bpp, 1, imaxb) # bills per page
 
 
+def make_backside_array(args, deq_input, irow, icol):
+    """
+        Makes the required array for mulitcolumn printing.
+        Derived from:
+        https://www.geeksforgeeks.org/python-slicing-reverse-array-groups-given-size/
+    """
+
+    # convert deque to list
+    lst = list()
+    for deq in deq_input:
+        lst.append(deq)
+    deq_input = lst
+
+    # set starting index at 0
+    start = int(0)
+
+    # run a while loop len(input)/irow times
+    # because there will be len(input)/k number
+    # of groups of size irow
+    result = []
+    while start < len(deq_input):
+
+        # if length of group is less than irow
+        # that means we are left with only last
+        # group reverse remaining elements
+        if len(deq_input[start:]) < int(irow):
+            result += list(reversed(deq_input[start:]))
+            break
+
+        # select current group of size of k
+        # reverse it and concatenate
+        result += list(reversed(deq_input[start:start + irow]))
+        start += irow
+
+    if args.bpp % icol != 0:
+        dq_tmp = deque()
+        [dq_tmp.append(i) for i in result] # DAMN YOU, pylint!
+        dq_tmp.rotate(int(irow))
+        result = dq_tmp
+    else:
+        result = reversed(result)
+
+        dq_tmp = deque()
+        [dq_tmp.append(i) for i in result] # pylint, you do like a vacuum does!
+        result = dq_tmp
+
+    return result
+
+
+def create_printable_doc(args, totalpages, file_bills, file_print):
+    """
+        Creates the pdf-document with all the bills for duplex printing
+    """
+
+    out = codecs.open(DIR_PATH/file_print, 'w', encoding='utf8')
+    out.write(r'% !TeX TS-program = lualatex'+'\n') # TeXstudio magic comment!
+    out.write(r'\documentclass{article}'+'\n')
+    out.write(r'\usepackage[landscape,'+ args.ps +']{geometry}'+'\n')    
+    out.write(r'\usepackage{pdfpages}'+'\n')
+    out.write(r'\begin{document}'+'\n')
+
+    billsize = 'width=' + str(round(args.width, 2)) + 'mm, height=' + \
+        str(round(args.height, 2)) + 'mm, '
+
+    # Not every combination of rows/columns seem to work.
+    # I'm not that good at math ...
+    # It works best, if all rows and columns are completely filled.
+    icol = int(args.col)
+    ibpp = int(args.bpp)
+
+    # number of rows in final pdf
+    irow = int(args.bpp / icol)
+
+    #
+    #
+    pgoffset = 0
+    for _ in range(totalpages):
+        ibppcheck = 0
+        front_page = deque()
+        back_page = deque() 
+
+        for ibillnum in range(pgoffset * ibpp, (pgoffset * ibpp) + 2 * ibpp):
+            ibillnum += 1
+            if ibppcheck < ibpp:
+                if ibillnum % 2 == 0:
+                    back_page.append(ibillnum)
+                    ibppcheck += 1
+                else:
+                    # add all odd numbers
+                    front_page.append(ibillnum)
+
+        back_page = make_backside_array(args, back_page, irow, icol)
+
+        # needs to add a place holder if the last row is incomplete
+        if ibpp % icol != 0:
+            irow = int((ibpp + 1) / icol)
+            back_page.insert(irow - 1, '')
+            front_page.insert(ibpp, '')
+
+        out.write(r'\includepdf[pages={'+', '.join(str(x) for x in front_page) + r'}, '\
+            r'offset=0.0mm 0.0mm, noautoscale, ' + billsize + 'nup=' + str(icol) + 'x' + \
+            str(irow) + r', pagecommand={\thispagestyle{empty}}, column=true, '\
+            r'columnstrict=true]{' + file_bills + '}'+'\n')
+
+        out.write(r'\includepdf[pages={'+', '.join(str(x) for x in back_page) + \
+            '}, offset=' + str(round(float(args.dupoff[0]), 2)) + 'mm ' + \
+            str(round(float(args.dupoff[1]), 2)) + 'mm, noautoscale, ' + billsize + \
+            r'nup=' + str(icol) + 'x' + str(irow) + \
+            r', pagecommand={\thispagestyle{empty}}, column=true, '\
+            r'columnstrict=true]{' + file_bills + '}'+'\n')
+
+        pgoffset += 2
+    #
+    #
+
+    out.write(r'\end{document}'+'\n')
+    out.close()
+
+
 def main(args, all_defargs):
-    """ MAIN """
+    """
+        MAIN
+    """
 
     args_validator(args, all_defargs)
+    
+    # If user wants to calibrate his/her printer:
+    if args.pc:
+        args.d = True
+        args.nop = [1]
+        args.bv = [1]
 
     totalpages = 0
     for i in range(len(args.nop)):
@@ -270,9 +440,14 @@ def main(args, all_defargs):
             print('Something went wrong with ' + (file_print + files_ext_tex))
             exit(1)
 
-        os.remove(DIR_PATH/(file_bills + '.aux'))
-        os.remove(DIR_PATH/(file_print + '.aux'))
-
+        remove_files = ["aux", "pdf", "log", "tex", "xwm"]
+        for rmfile in remove_files:
+            try:              
+                os.remove(DIR_PATH/(file_bills + '.' + rmfile))
+                os.remove(DIR_PATH/(file_print + '.' + rmfile))
+            except OSError as e:
+                print('')
+            
         print('')
         print('*** all done!')
         print('Your file (yourMoney.pdf) is ready to be duplex-printed along the short edge...')
@@ -280,6 +455,34 @@ def main(args, all_defargs):
     else:
         print('Something went wrong with ' + (file_bills + files_ext_tex))
         exit(1)
+
+
+# Print iterations progress
+def print_progress_bar(iteration, total, prefix=''):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+    """
+    suffix = ''
+    decimals = 1
+    length = 50 # int((os.get_terminal_size(1).columns - 20) / 2)
+    fill = '█'
+
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledlength = int(length * iteration // total)
+    pbar = fill * filledlength + '-' * (length - filledlength)
+    print('\r%s |%s| %s%% %s' % (prefix, pbar, percent, suffix), end='\r')
+    # Print New Line on Complete
+    if iteration == total:
+        print()
+
 
 def get_random_list(args):
     """
@@ -381,41 +584,68 @@ def create_tex_main(args, file_bills):
     out.close()
 
 
-def get_serialnumber_setting(args, out):
+def print_serialnumbers(args, out, xyf, strdebug):
     """
-        silly pylint - too many branches ... don't like big trees?!
+        do this, if the user wants serial numbers on front and back
     """
 
-    # get serialnumber settings from arguments
-    xyf = Serialnumber(args)
-
-    out.write(r'\usepackage[T1]{fontenc}'+'\n')
-    out.write(r'\usepackage{emerald}'+'\n')
-
-    if not args.s:
-        if args.font != 'standard':
-            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{%'+'\n')
-            out.write(r'  \fontsize{' + str(xyf.fontsize) + r'mm}{' + \
-                str(xyf.fontsize + 1) + r'mm}' + str(LIST_OF_FONTS.get(args.font)) + \
-                r'\fontseries{m}\fontshape{n}\selectfont}'+'\n')
-        else:
-            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{\fontsize{' + \
-            str(xyf.fontsize) + r'mm}{' + str(xyf.fontsize + 1) + \
-                r'mm}\rmfamily\selectfont}'+'\n')
-
-    strdebug = ''
+    debugtext = ''
+    debugnode = ''
     if args.d:
-        strdebug = r' \thisfontsfamily #3 -- '
-
-    if not args.s and not args.sb:
-        # if serial number on front and back
-        print_serialnumbers(args, out, xyf, strdebug)
-    elif args.sb:
-        # if serial number on front and back
-        print_no_serial_on_backside(out, xyf, strdebug)
+        debugtext = r', text=black, font=\bfseries'
+        debugnode = '\t'+r'\node[opacity=.35] at (thispage.center) '
     else:
-        # if NO serial number on front AND back
-        print_no_serial(args, out)
+        debugnode = '\t'+r'\node at (thispage.center) '
+
+    out.write(r'\newcommand{\mypics}[4]{'+'\n'\
+        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle'\
+        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
+        r'at (current page.center) {};'+'\n')
+
+    out.write(debugnode)
+    out.write(r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n'\
+        '\t'+r'\node[xshift='+\
+        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm' + debugtext +\
+        r'] at (thispage.center) '\
+        r'{\thisfontsfamily' + strdebug + r'#4};'+'\n'\
+        r'  \end{tikzpicture}'+'\n'\
+        r'  \newpage'+'\n'\
+        r'  \begin{tikzpicture}[remember picture, overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n')
+
+    out.write(debugnode)
+    out.write(r'{\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
+        '\t'+r'\node[xshift=' + str(xyf.shiftbx) + r'mm, yshift=' + str(xyf.shiftby) + r'mm' +\
+        debugtext + r'] at '\
+        r'(thispage.center) {\thisfontsfamily' + strdebug + r'#4};'+'\n'\
+        r'  \end{tikzpicture}'+'\n'+r'  \newpage'+'\n}'+'\n')
+
+
+def print_no_serial_on_backside(out, xyf, strdebug):
+    """
+        do this, if the user doesn't want serial numbers on the back of the bills
+    """
+    # if serial number on front and back
+    out.write(r'\newcommand{\mypics}[4]{'+'\n'\
+        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle'\
+        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
+        r'at (current page.center) {};'+'\n'\
+        '\t'+r'\node at (thispage.center) '\
+        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n'\
+        '\t'+r'\node[xshift='+\
+        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm] at (thispage.center) '\
+        r'{\thisfontsfamily' + strdebug + r'#4};'+'\n'\
+        r'  \end{tikzpicture}'+'\n'\
+        r'  \newpage'+'\n'\
+        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
+        '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
+        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n'\
+        '\t'+r'\node at '\
+        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
+        r'  \end{tikzpicture}'+'\n'+r'  \newpage'+'\n}'+'\n')
 
 
 def print_no_serial(args, out):
@@ -453,252 +683,42 @@ def print_no_serial(args, out):
     out.write(r'\end{tikzpicture}'+'\n'+r'\newpage}'+'\n')
 
 
-def print_no_serial_on_backside(out, xyf, strdebug):
+def get_serialnumber_setting(args, out):
     """
-        do this, if the user doesn't want serial numbers on the back of the bills
-    """
-    # if serial number on front and back
-    out.write(r'\newcommand{\mypics}[4]{'+'\n'\
-        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
-        '\t'+r'\node (thispage) [shape=rectangle'\
-        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
-        r'at (current page.center) {};'+'\n'\
-        '\t'+r'\node at (thispage.center) '\
-        r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n'\
-        '\t'+r'\node[xshift='+\
-        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm] at (thispage.center) '\
-        r'{\thisfontsfamily' + strdebug + r'#4};'+'\n'\
-        r'  \end{tikzpicture}'+'\n'\
-        r'  \newpage'+'\n'\
-        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
-        '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
-        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n'\
-        '\t'+r'\node at '\
-        r'(thispage.center) {\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
-        r'  \end{tikzpicture}'+'\n'+r'  \newpage'+'\n}'+'\n')
-
-
-def print_serialnumbers(args, out, xyf, strdebug):
-    """
-        do this, if the user wants serial numbers on front and back
+        silly pylint - too many branches ... don't like big trees?!
     """
 
-    debugtext = ''
-    debugnode = ''
+    # get serialnumber settings from arguments
+    xyf = Serialnumber(args)
+
+    out.write(r'\usepackage[T1]{fontenc}'+'\n')
+    out.write(r'\usepackage{emerald}'+'\n')
+
+    if not args.s:
+        if args.font != 'standard':
+            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{%'+'\n')
+            out.write(r'  \fontsize{' + str(xyf.fontsize) + r'mm}{' + \
+                str(xyf.fontsize + 1) + r'mm}' + str(LIST_OF_FONTS.get(args.font)) + \
+                r'\fontseries{m}\fontshape{n}\selectfont}'+'\n')
+        else:
+            out.write(r'\DeclareRobustCommand{\thisfontsfamily}{\fontsize{' + \
+            str(xyf.fontsize) + r'mm}{' + str(xyf.fontsize + 1) + \
+                r'mm}\rmfamily\selectfont}'+'\n')
+
+    strdebug = ''
     if args.d:
-        debugtext = r', text=black, font=\bfseries'
-        debugnode = '\t'+r'\node[opacity=.35] at (thispage.center) '
+        strdebug = r' \thisfontsfamily #3 -- '
+                
+    if not args.s and not args.sb:
+        # if serial number on front and back
+        print_serialnumbers(args, out, xyf, strdebug)
+    elif args.sb:
+        # if serial number on front and back
+        print_no_serial_on_backside(out, xyf, strdebug)
     else:
-        debugnode = '\t'+r'\node at (thispage.center) '
+        # if NO serial number on front AND back
+        print_no_serial(args, out)
 
-    out.write(r'\newcommand{\mypics}[4]{'+'\n'\
-        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
-        '\t'+r'\node (thispage) [shape=rectangle'\
-        r', minimum height=\paperheight, minimum width=\paperwidth, anchor=center] '\
-        r'at (current page.center) {};'+'\n')
-
-    out.write(debugnode)
-    out.write(r'{\includegraphics[width=\paperwidth, height=\paperheight]{#1}};'+'\n'\
-        '\t'+r'\node[xshift='+\
-        str(xyf.shiftx) + r'mm, yshift=' + str(xyf.shifty) + r'mm' + debugtext +\
-        r'] at (thispage.center) '\
-        r'{\thisfontsfamily' + strdebug + r'#4};'+'\n'\
-        r'  \end{tikzpicture}'+'\n'\
-        r'  \newpage'+'\n'\
-        r'  \begin{tikzpicture}[remember picture,overlay]'+'\n'\
-        '\t'+r'\node (thispage) [shape=rectangle, minimum height=\paperheight, '\
-        r'minimum width=\paperwidth, anchor=center] at (current page.center) {};'+'\n')
-
-    out.write(debugnode)
-    out.write(r'{\includegraphics[width=\paperwidth, height=\paperheight]{#2}};'+'\n'\
-        '\t'+r'\node[xshift=' + str(xyf.shiftbx) + r'mm, yshift=' + str(xyf.shiftby) + r'mm' +\
-        debugtext + r'] at '\
-        r'(thispage.center) {\thisfontsfamily' + strdebug + r'#4};'+'\n'\
-        r'  \end{tikzpicture}'+'\n'+r'  \newpage'+'\n}'+'\n')
-
-
-def make_backside_array(args, deq_input, irow, icol):
-    """
-        Makes the required array for mulitcolumn printing.
-        Derived from:
-        https://www.geeksforgeeks.org/python-slicing-reverse-array-groups-given-size/
-    """
-
-    # convert deque to list
-    lst = list()
-    for deq in deq_input:
-        lst.append(deq)
-    deq_input = lst
-
-    # set starting index at 0
-    start = int(0)
-
-    # run a while loop len(input)/irow times
-    # because there will be len(input)/k number
-    # of groups of size irow
-    result = []
-    while start < len(deq_input):
-
-        # if length of group is less than irow
-        # that means we are left with only last
-        # group reverse remaining elements
-        if len(deq_input[start:]) < int(irow):
-            result += list(reversed(deq_input[start:]))
-            break
-
-        # select current group of size of k
-        # reverse it and concatenate
-        result += list(reversed(deq_input[start:start + irow]))
-        start += irow
-
-    if args.bpp % icol != 0:
-        dq_tmp = deque()
-        [dq_tmp.append(i) for i in result] # DAMN YOU, pylint!
-        dq_tmp.rotate(int(irow))
-        result = dq_tmp
-    else:
-        result = reversed(result)
-
-        dq_tmp = deque()
-        [dq_tmp.append(i) for i in result] # pylint, you do like a vacuum does!
-        result = dq_tmp
-
-    return result
-
-
-def create_printable_doc(args, totalpages, file_bills, file_print):
-    """
-        Creates the pdf-document with all the bills for duplex printing
-    """
-
-    out = codecs.open(DIR_PATH/file_print, 'w', encoding='utf8')
-    out.write(r'% !TeX TS-program = lualatex'+'\n') # TeXstudio magic comment!
-    out.write(r'\documentclass['+ args.ps +', landscape]{article}'+'\n')
-    out.write(r'\usepackage{pdfpages}'+'\n')
-    out.write(r'\begin{document}'+'\n')
-
-    billsize = 'width=' + str(round(args.width, 2)) + 'mm, height=' + \
-        str(round(args.height, 2)) + 'mm, '
-
-    # Not every combination of rows/columns seem to work.
-    # I'm not that good at math ...
-    # It works best, if all rows and columns are completly filled.
-    icol = int(args.col)
-    ibpp = int(args.bpp)
-
-    # number of rows in final pdf
-    irow = int(args.bpp / icol)
-
-    #
-    #
-    pgoffset = 0
-    for _ in range(totalpages):
-        ibppcheck = 0
-        front_page = deque()
-        back_page = deque()
-
-        for ibillnum in range(pgoffset * ibpp, (pgoffset * ibpp) + 2 * ibpp):
-            ibillnum += 1
-            if ibppcheck < ibpp:
-                if ibillnum % 2 == 0:
-                    back_page.append(ibillnum)
-                    ibppcheck += 1
-                else:
-                    # add all odd numbers
-                    front_page.append(ibillnum)
-
-        back_page = make_backside_array(args, back_page, irow, icol)
-
-        # needs to add a place holder if the last row is incomplete
-        if ibpp % icol != 0:
-            irow = int((ibpp + 1) / icol)
-            back_page.insert(irow - 1, '')
-            front_page.insert(ibpp, '')
-
-        out.write(r'\includepdf[pages={'+', '.join(str(x) for x in front_page) + r'}, '\
-            r'offset=0.0mm 0.0mm, noautoscale, ' + billsize + 'nup=' + str(icol) + 'x' + \
-            str(irow) + r', pagecommand={\thispagestyle{empty}}, column=true, '\
-            r'columnstrict=true]{' + file_bills + '}'+'\n')
-
-        out.write(r'\includepdf[pages={'+', '.join(str(x) for x in back_page) + \
-            '}, offset=' + str(round(float(args.dupoff[0]), 2)) + 'mm ' + \
-            str(round(float(args.dupoff[1]), 2)) + 'mm, noautoscale, ' + billsize + \
-            r'nup=' + str(icol) + 'x' + str(irow) + \
-            r', pagecommand={\thispagestyle{empty}}, column=true, '\
-            r'columnstrict=true]{' + file_bills + '}'+'\n')
-
-        pgoffset += 2
-    #
-    #
-
-    out.write(r'\end{document}'+'\n')
-    out.close()
-
-
-class Serialnumber:
-    """ pylint thinks this would be better ... to out-source such things """
-
-    def __init__(self, args):
-
-        self._shiftx = args.snoff[0]
-        self._shifty = args.snoff[1]
-        self._shiftbx = args.snboffset[0]
-        self._shiftby = args.snboffset[1]
-        self._fontsize = args.fsize
-        if args.d:
-            self._fontsize = round(args.fsize * 3, 2)
-            self._shiftx = 0
-            self._shifty = 0
-            self._shiftbx = 0
-            self._shiftby = 0
-
-    @property
-    def shiftx(self):
-        """ get/set shift-x """
-        return self._shiftx
-    @property
-    def shifty(self):
-        """ get/set shift-y """
-        return self._shifty
-    @property
-    def shiftbx(self):
-        """ get/set back side shift-x """
-        return self._shiftbx
-    @property
-    def shiftby(self):
-        """ get/set back side shift-x """
-        return self._shiftby
-    @property
-    def fontsize(self):
-        """ get/set font size in mm """
-        return self._fontsize
-
-
-# Print iterations progress
-def print_progress_bar(iteration, total, prefix=''):
-    """
-    Call in a loop to create terminal progress bar
-    @params:
-        iteration   - Required  : current iteration (Int)
-        total       - Required  : total iterations (Int)
-        prefix      - Optional  : prefix string (Str)
-        suffix      - Optional  : suffix string (Str)
-        decimals    - Optional  : positive number of decimals in percent complete (Int)
-        length      - Optional  : character length of bar (Int)
-        fill        - Optional  : bar fill character (Str)
-    """
-    suffix = ''
-    decimals = 1
-    length = 50 # int((os.get_terminal_size(1).columns - 20) / 2)
-    fill = '█'
-
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    filledlength = int(length * iteration // total)
-    pbar = fill * filledlength + '-' * (length - filledlength)
-    print('\r%s |%s| %s%% %s' % (prefix, pbar, percent, suffix), end='\r')
-    # Print New Line on Complete
-    if iteration == total:
-        print()
 
 
 ARGS, ALL_DEFARGS = argumentparser()
