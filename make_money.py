@@ -457,33 +457,6 @@ def main(args, all_defargs):
         exit(1)
 
 
-# Print iterations progress
-def print_progress_bar(iteration, total, prefix=''):
-    """
-    Call in a loop to create terminal progress bar
-    @params:
-        iteration   - Required  : current iteration (Int)
-        total       - Required  : total iterations (Int)
-        prefix      - Optional  : prefix string (Str)
-        suffix      - Optional  : suffix string (Str)
-        decimals    - Optional  : positive number of decimals in percent complete (Int)
-        length      - Optional  : character length of bar (Int)
-        fill        - Optional  : bar fill character (Str)
-    """
-    suffix = ''
-    decimals = 1
-    length = 50 # int((os.get_terminal_size(1).columns - 20) / 2)
-    fill = '█'
-
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    filledlength = int(length * iteration // total)
-    pbar = fill * filledlength + '-' * (length - filledlength)
-    print('\r%s |%s| %s%% %s' % (prefix, pbar, percent, suffix), end='\r')
-    # Print New Line on Complete
-    if iteration == total:
-        print()
-
-
 def get_random_list(args):
     """
         pylint ... I don't like you anymore
@@ -507,8 +480,6 @@ def get_random_list(args):
         if rnd not in lstserial:
             lstserial.append(rnd)
             cnt += 1
-            if itotalallbills > 2000:
-                print_progress_bar(cnt, itotalallbills, prefix='Randomizing: ')
 
     return lstserial
 
