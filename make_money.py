@@ -544,6 +544,7 @@ def get_random_list(args):
             if itotalallbills > 500:
                 print_progress_bar(cnt, itotalallbills, prefix='Creating Serial Numbers: ')
 
+
     return lstserial
 
 
