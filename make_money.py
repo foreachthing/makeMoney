@@ -3,6 +3,7 @@
 """
 #!/usr/bin/python
 
+from asyncio.windows_events import NULL
 import os
 from pathlib import Path
 import codecs
@@ -11,11 +12,12 @@ from shutil import copyfile
 import argparse
 from collections import deque
 import random
+import sys
 
 # define files
 DIR_PATH = Path(__file__).resolve().parent
 
-MAXIMUM = 2147483647 # 2**31 - 1
+MAXIMUM = 2**31 - 1 # 2147483647
 
 LIST_OF_FONTS = dict([('Apicturealphabet', r'\ECFAPictureAlphabet'), \
     ('Augie', r'\ECFAugie'), \
@@ -60,10 +62,10 @@ def argumentparser():
     help='For debugging or testing only! Use the dummy image in the subdirectory, rather than ' \
         'the real ones. Fontsize is 3 times default, label is centered to page. '\
         '(Default: %(default)s)')
-    
+
     parser.add_argument('-pc', action='store_true', default=False, \
     help='For printer calibration only. Will print serial number as with -d on example-image-a '\
-        'and example-image-b background (from graphicx package). -nop and -bv are overridden.'\
+        'and example-image-b background (from graphicx package). -nop and -bv are overridden. '\
         '(Default: %(default)s)')
 
     grp_page = parser.add_argument_group('Page and bill settings')
@@ -111,7 +113,7 @@ def argumentparser():
 
     # serial number START -> END value
     grp_sn.add_argument('-sn', nargs=2, metavar=('START', 'END'), default=(1, MAXIMUM), \
-        type=int, help='Start and end value of serial number. Minimum = 0, Maximum = ' + \
+        type=int, help='Start and end value of serial number. Minimum = 1, Maximum = ' + \
         str(format(MAXIMUM, ',')).replace(',', "'") + ', default: %(default)s.')
     grp_sn.add_argument('-snoff', nargs=2, metavar=('X', 'Y'), default=('-44', '-0.2'), \
         type=float, help='X Y offset, in mm and starting from the center, of serial number '\
@@ -127,6 +129,9 @@ def argumentparser():
 
     grp_layout = parser.add_argument_group('Use these options to use a '\
         'different image for the front and back side')
+    grp_layout.add_argument('-folder', metavar='str', type=str, default='bills', \
+        help='Input folder with bills. Use this if you have a folder with '\
+            'hires images. Default: %(default)s -> bills/money-1 etc.')
     grp_layout.add_argument('-frontback', action='store_true', default=False, \
         help='If set, you need to specify "-front" and "-back" as well. (Default: %(default)s)')
     grp_layout.add_argument('-front', metavar='str', type=str, default='money', \
@@ -143,10 +148,10 @@ def argumentparser():
         '5 pages of 10s and 7 pages of 20s.')
     # 1, 5, 10, 20, 50, 100, 500
     grp_bills.add_argument('-nop', nargs='*', type=int, \
-        default=('20', '6', '8', '6', '6', '16', '8'), \
+        default=(20, 6, 8, 6, 6, 16, 8), \
         help='Abount of pages of all the bills. Default: %(default)s')
     grp_bills.add_argument('-bv', nargs='*', type=int, \
-        default=('1', '5', '10', '20', '50', '100', '500'), \
+        default=(1, 5, 10, 20, 50, 100, 500), \
         help='List of Bill Values. Changes also required in "-nop" and make sure your '\
         'bill-image exists in the sub-directory. Default: %(default)s')
 
@@ -156,19 +161,22 @@ def argumentparser():
 
     try:
         args = parser.parse_args()
-        
+
         # To get all defaults:
         all_defargs = {}
         for key in vars(args):
             all_defargs[key] = parser.get_default(key)
 
-        return [args, all_defargs]
+        return [args, all_defargs, parser]
 
     except IOError as msg:
         parser.error(str(msg))
+        return NULL
 
 class Serialnumber:
-    """ pylint thinks this would be better ... to out-source such things """
+    """
+    pylint thinks this would be better ... to out-source such things
+    """
 
     def __init__(self, args):
 
@@ -225,10 +233,10 @@ def create_xwm_file(file_bills, totalpages):
     """
         This creates a required xwm file (watermark)
     """
-    xwm_file = open(DIR_PATH/(file_bills + '.xwm'), 'w')
-    xwm_file.write(r'\relax'+'\n'\
+
+    with open(DIR_PATH/(file_bills + '.xwm'), 'w', encoding='UTF-8') as xwm_file:
+        xwm_file.write(r'\relax'+'\n'\
         r'\xwmnewlabel{xwmlastpage}{{}{' + str(totalpages) + r'}{\relax}{Doc-Start}{}}'+'\n')
-    xwm_file.close()
 
 
 def args_validator(args, all_defargs):
@@ -238,39 +246,81 @@ def args_validator(args, all_defargs):
     imin = 0
     imax = MAXIMUM
 
-    if args.rec:
-        args.bv = all_defargs.get('bv')
-        args.nop = ('20', '4', '8', '4', '4', '16', '8')  # all_defargs.get('nop')
+    # make sure default folder is not empty
+    if not args.folder:
+        args.folder = "bills"
 
-    sn0 = set_validrange(int(args.sn[0]), imin, imax)
+    if not os.path.isdir(DIR_PATH/args.folder):
+        print(f"Specified folder '{args.folder}' does not exist")
+        sys.exit(1)
+
+    # count of bill values must match count of bills
+    # -bv 5      => -nop 7
+    # -bv 1 5 10 => -nop 2 4 1
+    if len(args.bv) != len(args.nop):
+        print('Amount of parameters for "-bv" and "-nop" must match.')
+        sys.exit(1)
+
+    # if recommended shall be used:
+    if args.rec:
+        args.bv = all_defargs.get('bv')  # ( 1, 5, 10, 20, 50, 100, 500)
+        args.nop = all_defargs.get('nop') # (20, 4,  8,  4,  4,   16,  8)
+
+        # number of columns
+        args.col = set_validrange(all_defargs.get('col'), 1, 100) # 2
+
+        # bills per page: min 1, max 1000
+        args.bpp = set_validrange(all_defargs.get('bpp'), 1, 1000) # 6
+
+        # Serial numbers stuff
+        sn0 = set_validrange(int(all_defargs.get('sn')[0]), 1, imax)
+        if int(all_defargs.get('sn')[1]) <= sn0:
+            sn1 = max
+        else:
+            sn1 = set_validrange(int(all_defargs.get('sn')[1]), 1, imax)
+        args.sn = (sn0, sn1)
+
+        # s/n seed
+        args.sns = set_validrange(all_defargs.get('sns'), imin, imax)
+
+        # bills size
+        args.width = set_validrange(all_defargs.get('width'), imin, imax)
+        args.height = set_validrange(all_defargs.get('height'), imin, imax)
+
+        return
+
+    # Serial numbers stuff
+    sn0 = set_validrange(int(args.sn[0]), 1, imax)
     if int(args.sn[1]) <= sn0:
         sn1 = max
     else:
-        sn1 = set_validrange(int(args.sn[1]), imin, imax)
+        sn1 = set_validrange(int(args.sn[1]), 1, imax)
     args.sn = (sn0, sn1)
 
     # s/n seed
-    args.sns = set_validrange(int(args.sns), imin, imax)
+    args.sns = set_validrange(args.sns, imin, imax)
 
-    # number of columsn
-    args.col = set_validrange(int(args.col), 1, 100)
+    # check number of pages of each bill value
+    tmp_lst = [int(set_validrange(int(i), 1, 10000)) for i in args.nop]
+    args.nop = tmp_lst
 
-    iminb = 0
-    imaxb = 1000
+    # check bill values
+    tmp_lst = [int(set_validrange(int(i), 1, 10000)) for i in args.bv]
+    args.bv = tmp_lst
 
-    if len(args.bv) != len(args.nop):
-        print('Number of parameters for "-bv" and "-nop" must match.')
-        exit(1)
+    # number of columns
+    args.col = set_validrange(all_defargs.get('col'), 1, 100)
 
-    list_nop = []
-    for i in range(len(args.nop)):
-        list_nop.append(set_validrange(int(args.nop[i]), iminb, imaxb))
+    # bills per page: min 1, max 1000
+    args.bpp = set_validrange(args.bpp, 1, 1000)
 
-    args.nop = list_nop
-    args.bpp = set_validrange(args.bpp, 1, imaxb) # bills per page
+    # check if page is full
+    if args.bpp % args.col != 0:
+        print('Incomplete row found. Please check "-bpp" and "-col".')
+        sys.exit(1)
 
 
-def make_backside_array(args, deq_input, irow, icol):
+def make_backside_array(deq_input, irow):
     """
         Makes the required array for mulitcolumn printing.
         Derived from:
@@ -278,7 +328,7 @@ def make_backside_array(args, deq_input, irow, icol):
     """
 
     # convert deque to list
-    lst = list()
+    lst = []
     for deq in deq_input:
         lst.append(deq)
     deq_input = lst
@@ -291,30 +341,15 @@ def make_backside_array(args, deq_input, irow, icol):
     # of groups of size irow
     result = []
     while start < len(deq_input):
-
-        # if length of group is less than irow
-        # that means we are left with only last
-        # group reverse remaining elements
-        if len(deq_input[start:]) < int(irow):
-            result += list(reversed(deq_input[start:]))
-            break
-
         # select current group of size of k
         # reverse it and concatenate
         result += list(reversed(deq_input[start:start + irow]))
         start += irow
 
-    if args.bpp % icol != 0:
-        dq_tmp = deque()
-        [dq_tmp.append(i) for i in result] # DAMN YOU, pylint!
-        dq_tmp.rotate(int(irow))
-        result = dq_tmp
-    else:
-        result = reversed(result)
-
-        dq_tmp = deque()
-        [dq_tmp.append(i) for i in result] # pylint, you do like a vacuum does!
-        result = dq_tmp
+    result = reversed(result)
+    dq_tmp = deque()
+    [dq_tmp.append(i) for i in result] # pylint: disable=W0106
+    result = dq_tmp
 
     return result
 
@@ -327,7 +362,7 @@ def create_printable_doc(args, totalpages, file_bills, file_print):
     out = codecs.open(DIR_PATH/file_print, 'w', encoding='utf8')
     out.write(r'% !TeX TS-program = lualatex'+'\n') # TeXstudio magic comment!
     out.write(r'\documentclass{article}'+'\n')
-    out.write(r'\usepackage[landscape,'+ args.ps +']{geometry}'+'\n')    
+    out.write(r'\usepackage[landscape,'+ args.ps +']{geometry}'+'\n')
     out.write(r'\usepackage{pdfpages}'+'\n')
     out.write(r'\begin{document}'+'\n')
 
@@ -349,7 +384,7 @@ def create_printable_doc(args, totalpages, file_bills, file_print):
     for _ in range(totalpages):
         ibppcheck = 0
         front_page = deque()
-        back_page = deque() 
+        back_page = deque()
 
         for ibillnum in range(pgoffset * ibpp, (pgoffset * ibpp) + 2 * ibpp):
             ibillnum += 1
@@ -361,7 +396,7 @@ def create_printable_doc(args, totalpages, file_bills, file_print):
                     # add all odd numbers
                     front_page.append(ibillnum)
 
-        back_page = make_backside_array(args, back_page, irow, icol)
+        back_page = make_backside_array(back_page, irow)
 
         # needs to add a place holder if the last row is incomplete
         if ibpp % icol != 0:
@@ -393,18 +428,16 @@ def main(args, all_defargs):
     """
         MAIN
     """
-
+    # Validate submitted arguments
     args_validator(args, all_defargs)
-    
+
     # If user wants to calibrate his/her printer:
     if args.pc:
         args.d = True
         args.nop = [1]
         args.bv = [1]
 
-    totalpages = 0
-    for i in range(len(args.nop)):
-        totalpages += int(args.nop[i])
+    totalpages = sum(args.nop)
 
     file_bills = '1-main'
     file_print = '2-print'
@@ -417,13 +450,13 @@ def main(args, all_defargs):
     cmd = ['lualatex', '-output-directory', str(DIR_PATH), '-interaction=nonstopmode', \
         str(DIR_PATH/(file_bills + files_ext_tex))]
 
-    # make two runs because of some weird sht with the bills....?!?
-    for i in range(2):
+    # make two runs, because ....?!?
+    for _ in range(2):
         proc = subprocess.Popen(cmd)
         proc.communicate()
         if proc.returncode != 0:
             print('Something went wrong with ' + (file_bills + files_ext_tex))
-            exit(1)
+            sys.exit(1)
 
     retcode = proc.returncode
     if retcode == 0:
@@ -438,23 +471,24 @@ def main(args, all_defargs):
 
         else:
             print('Something went wrong with ' + (file_print + files_ext_tex))
-            exit(1)
+            sys.exit(1)
 
         remove_files = ["aux", "pdf", "log", "tex", "xwm"]
         for rmfile in remove_files:
-            try:              
+            try:
                 os.remove(DIR_PATH/(file_bills + '.' + rmfile))
                 os.remove(DIR_PATH/(file_print + '.' + rmfile))
-            except OSError as e:
-                print('')
-            
+            except OSError as err:
+                print(err.strerror)
+
         print('')
-        print('*** all done!')
-        print('Your file (yourMoney.pdf) is ready to be duplex-printed along the short edge...')
+        print('**** All done!')
+        print(f'**** Total of {str(sum(args.nop) * args.bpp)} bills on {sum(args.nop)} pages.')
+        print('**** Your file (yourMoney.pdf) is ready to be duplex-printed along the short edge.')
 
     else:
         print('Something went wrong with ' + (file_bills + files_ext_tex))
-        exit(1)
+        sys.exit(1)
 
 
 # Print iterations progress
@@ -478,7 +512,8 @@ def print_progress_bar(iteration, total, prefix=''):
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filledlength = int(length * iteration // total)
     pbar = fill * filledlength + '-' * (length - filledlength)
-    print('\r%s |%s| %s%% %s' % (prefix, pbar, percent, suffix), end='\r')
+    # print('\r%s |%s| %s%% %s' % (prefix, pbar, percent, suffix), end='\r')
+    print(f'\r{prefix} |{pbar}| {percent}% {suffix}', end='\r')
     # Print New Line on Complete
     if iteration == total:
         print()
@@ -488,13 +523,12 @@ def get_random_list(args):
     """
         pylint ... I don't like you anymore
     """
-    itotalallbills = 0
-    for i in range(len(args.nop)):
-        itotalallbills += args.nop[i] * args.bpp
-    print('\n### Total Bills: {0}\n'.format(str(itotalallbills)))
+
+    itotalallbills = sum(args.nop) * args.bpp
+    # print(f'\n### Total Bills: {str(itotalallbills)}\n')
 
     random.seed(args.sns)
-    lstserial = list()
+    lstserial = []
     newmaxsn = args.sn[1]
     if itotalallbills > (args.sn[1] - args.sn[0]):
         newmaxsn = args.sn[1] + args.sn[0] + itotalallbills
@@ -507,8 +541,8 @@ def get_random_list(args):
         if rnd not in lstserial:
             lstserial.append(rnd)
             cnt += 1
-            if itotalallbills > 2000:
-                print_progress_bar(cnt, itotalallbills, prefix='Randomizing: ')
+            if itotalallbills > 500:
+                print_progress_bar(cnt, itotalallbills, prefix='Creating Serial Numbers: ')
 
     return lstserial
 
@@ -520,8 +554,8 @@ def create_tex_main(args, file_bills):
 
     out = codecs.open(DIR_PATH/file_bills, 'w', encoding='utf8')
     out.write(r'\documentclass{article}'+'\n')
-    out.write('\\usepackage[paperheight={1}mm, paperwidth={0}mm, margin=0pt]'\
-        .format(args.width, args.height) + '{geometry}'+'\n')
+    out.write(f'\\usepackage[paperheight={args.height}mm, paperwidth={args.width}mm, margin=0pt]'\
+              + '{geometry}'+'\n')
 
     out.write(r'\usepackage{tikz}'+'\n')
     out.write(r'\usetikzlibrary{positioning}'+'\n')
@@ -541,40 +575,44 @@ def create_tex_main(args, file_bills):
     snum = ''
     padlen = len(str(args.sn[1]))
 
-    for i in range(len(args.nop)):
+    for i, nop in enumerate(args.nop, 0):
 
-        out.write(r'% % % ' + str(lbillvalues[i]) + '\n')
+        lbv = str(lbillvalues[i])
+        out.write(f"% % % {lbv}\n")
+
+        folder = args.folder
 
         itotalbills = args.nop[i] * args.bpp # total bills of current value
+        itotalbills = nop * args.bpp # total bills of current value
         itb = range(0, itotalbills)
         scnt = 0
 
         while scnt < len(itb):
 
             if args.snh:
-                snum = '{:02X}'.format(lstserial[cnt])
+                snum = f'{lstserial[cnt]:02X}'
             else:
                 snum = str(lstserial[cnt]).zfill(padlen)
 
             if args.d:
                 out.write(r'\mypics{example-image-a}{example-image-b}{' + \
-                    str(lbillvalues[i]) + '}{' + (snum) + r'}'+'\n')
+                    lbv + '}{' + (snum) + r'}'+'\n')
             else:
                 if not args.s:
                     if args.frontback:
-                        out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
-                            r'}{bills/' + args.back + '-' + str(lbillvalues[i]) +\
+                        out.write(r' \mypics{'+ folder +'/' + args.front + '-' + lbv +\
+                            r'}{'+ folder +'/' + args.back + '-' + lbv +\
                             r'}{}{' + snum + r'}'+'\n')
                     else:
-                        out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
-                            r'{bills/money-' + str(lbillvalues[i]) + r'}{}{' + snum + r'}'+'\n')
+                        out.write(r' \mypics{'+ folder +'/money-' + lbv + r'}'\
+                            r'{'+ folder +'/money-' + lbv + r'}{}{' + snum + r'}'+'\n')
                 else:
                     if args.frontback:
-                        out.write(r' \mypics{bills/' + args.front + '-' + str(lbillvalues[i]) +\
-                            r'}{bills/' + args.back + '-' + str(lbillvalues[i]) + r'}{}{}'+'\n')
+                        out.write(r' \mypics{'+ folder +'/' + args.front + '-' + lbv +\
+                            r'}{'+ folder +'/' + args.back + '-' + lbv + r'}{}{}'+'\n')
                     else:
-                        out.write(r' \mypics{bills/money-' + str(lbillvalues[i]) + r'}'\
-                            r'{bills/money-' + str(lbillvalues[i]) + r'}{}{}'+'\n')
+                        out.write(r' \mypics{'+ folder +'/money-' + lbv + r'}'\
+                            r'{'+ folder +'/money-' + lbv + r'}{}{}'+'\n')
             scnt += 1
             cnt += 1
 
@@ -708,7 +746,7 @@ def get_serialnumber_setting(args, out):
     strdebug = ''
     if args.d:
         strdebug = r' \thisfontsfamily #3 -- '
-                
+
     if not args.s and not args.sb:
         # if serial number on front and back
         print_serialnumbers(args, out, xyf, strdebug)
@@ -721,7 +759,12 @@ def get_serialnumber_setting(args, out):
 
 
 
-ARGS, ALL_DEFARGS = argumentparser()
-main(ARGS, ALL_DEFARGS)
+ARGS, ALL_DEFARGS, PARSER = argumentparser()
+if len(sys.argv)==1:
+    # Print help, if no args are provided
+    PARSER.print_help(sys.stderr)
+    sys.exit(1)
+
+main(ARGS, ALL_DEFARGS,)
 
 # final endline
