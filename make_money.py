@@ -142,18 +142,20 @@ def argumentparser():
         type=float, help='X Y offset, in mm and starting from the center, of serial number '\
         'label for the BACK side (default: %(default)s mm)')
 
-    grp_bills = parser.add_argument_group('Number of Pages of bills of each value', \
+    grp_bills = parser.add_argument_group('Number of Pages of bills of each value '\
         'Maximum of 1000 pages per bill. Recommended values: 20, 4, 8, 4, 4, 16 and 8 pages. '\
-        'Example: "-nop 5 7 -bv 10 20" will create a document of 12 pages. '\
-        '5 pages of 10s and 7 pages of 20s.')
-    # 1, 5, 10, 20, 50, 100, 500
+        'If omitted, default order will be trimmed to number of arguments in -nop. '\
+        'Default value order: 1 5 10 20 50 100 500. '\
+        'Examples: "-nop 20 6 8" -> "-bv 1 5 10". "-nop 0 1" -> print one page of 5s (zero ones). '\
+        '"-nop 5 7 -bv 10 20" will create 5 pages of 10s and 7 pages of 20s.')
     grp_bills.add_argument('-nop', nargs='*', type=int, \
         default=(20, 6, 8, 6, 6, 16, 8), \
         help='Abount of pages of all the bills. Default: %(default)s')
     grp_bills.add_argument('-bv', nargs='*', type=int, \
         default=(1, 5, 10, 20, 50, 100, 500), \
         help='List of Bill Values. Changes also required in "-nop" and make sure your '\
-        'bill-image exists in the sub-directory. Default: %(default)s')
+        'bill-image exists in the sub-directory. '\
+        'Default: %(default)s.')
 
     grp_bills.add_argument('-rec', action='store_true', default=False, \
         help='Use recommended number of pages of each bill value (see above). '\
@@ -257,7 +259,12 @@ def args_validator(args, all_defargs):
     # count of bill values must match count of bills
     # -bv 5      => -nop 7
     # -bv 1 5 10 => -nop 2 4 1
-    if len(args.bv) != len(args.nop):
+    if len(args.bv) > len(args.nop):
+        tmp_lst_bv = [int(set_validrange(int(i), 0, 10000)) for i in args.bv]
+        args.nop = [int(set_validrange(int(i), 0, 10000)) for i in args.nop]
+        args.bv = tmp_lst_bv[:len(args.nop)]
+
+    elif len(args.bv) != len(args.nop):
         print('Amount of parameters for "-bv" and "-nop" must match.')
         sys.exit(1)
 
@@ -301,12 +308,10 @@ def args_validator(args, all_defargs):
     args.sns = set_validrange(args.sns, imin, imax)
 
     # check number of pages of each bill value
-    tmp_lst = [int(set_validrange(int(i), 1, 10000)) for i in args.nop]
-    args.nop = tmp_lst
+    args.nop = [int(set_validrange(int(i), 0, 10000)) for i in args.nop]
 
     # check bill values
-    tmp_lst = [int(set_validrange(int(i), 1, 10000)) for i in args.bv]
-    args.bv = tmp_lst
+    args.bv = [int(set_validrange(int(i), 1, 10000)) for i in args.bv]
 
     # number of columns
     args.col = set_validrange(all_defargs.get('col'), 1, 100)
